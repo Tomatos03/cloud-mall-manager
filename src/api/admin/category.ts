@@ -1,0 +1,58 @@
+import { http } from '@/utils/http'
+import type { CategoryItem, Category, CategoryPageParams, CategoryPageResult, CategoryFormData } from '../common/category'
+
+const PREFIX = '/admin'
+
+/**
+ * 获取分类树/列表（前端用于渲染树）
+ */
+export function getCategoryList() {
+    return http.get<Category[]>(`${PREFIX}/category/list`)
+}
+
+/**
+ * 添加分类
+ */
+export function addCategory(data: CategoryFormData) {
+    return http.post(`${PREFIX}/category/add`, data)
+}
+
+/**
+ * 更新分类（使用 data.id）
+ */
+export function updateCategory(data: CategoryFormData) {
+    const { id, ...rest } = data
+    return http.post(`${PREFIX}/category/update/${id}`, rest)
+}
+
+/**
+ * 删除分类
+ */
+export function deleteCategory(id: string) {
+    return http.post(`${PREFIX}/category/delete/${id}`)
+}
+
+/**
+ * 获取分类树（用于级联选择）
+ */
+export function getCategoryTree() {
+    return http.get<CategoryItem[]>(`${PREFIX}/category/tree`)
+}
+
+// 通用 API 函数（不关联到特定角色）
+/**
+ * 获取分类树/列表（通用）
+ */
+export function getCategoryListGeneral() {
+    return http.get<Category[]>('/category/list')
+}
+
+/**
+ * 获取分类树（通用）
+ */
+export function getCategoryTreeGeneral() {
+    return http.get<CategoryItem[]>('/category/tree')
+}
+
+// 导出公共类型
+export type { CategoryItem, Category, CategoryPageParams, CategoryPageResult, CategoryFormData }
