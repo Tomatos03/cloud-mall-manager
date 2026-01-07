@@ -4,7 +4,9 @@
             <!-- 极简注水进度条 (水管风格) -->
             <div class="mb-12 relative px-10">
                 <!-- 背景连接线 (水管) -->
-                <div class="absolute top-4 left-14 right-14 h-1 bg-gray-200 rounded-full overflow-hidden">
+                <div
+                    class="absolute top-4 left-14 right-14 h-1 bg-gray-200 rounded-full overflow-hidden"
+                >
                     <!-- 动态注水效果 -->
                     <div
                         class="h-full bg-blue-500 transition-all duration-700 ease-out"
@@ -22,8 +24,11 @@
                         <div
                             class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all duration-500 z-10"
                             :class="[
-                                publishStore.activeStep === index ? 'border-blue-600 bg-white text-blue-600 shadow-[0_0_15px_rgba(59,130,246,0.3)] scale-110' :
-                                publishStore.activeStep > index ? 'border-blue-500 bg-blue-500 text-white' : 'border-gray-200 bg-white text-gray-400'
+                                publishStore.activeStep === index
+                                    ? 'border-blue-600 bg-white text-blue-600 shadow-[0_0_15px_rgba(59,130,246,0.3)] scale-110'
+                                    : publishStore.activeStep > index
+                                      ? 'border-blue-500 bg-blue-500 text-white'
+                                      : 'border-gray-200 bg-white text-gray-400',
                             ]"
                         >
                             <span v-if="publishStore.activeStep <= index">{{ index + 1 }}</span>
@@ -31,8 +36,11 @@
                         </div>
                         <span
                             class="text-[11px] font-bold transition-colors duration-300"
-                            :class="publishStore.activeStep >= index ? 'text-gray-700' : 'text-gray-400'"
-                        >{{ step }}</span>
+                            :class="
+                                publishStore.activeStep >= index ? 'text-gray-700' : 'text-gray-400'
+                            "
+                            >{{ step }}</span
+                        >
                     </div>
                 </div>
             </div>
@@ -40,10 +48,7 @@
             <!-- 步骤内容区域 -->
             <div class="step-content">
                 <!-- 第一步：选择发布方式 -->
-                <Step1
-                    v-if="publishStore.activeStep === 0"
-                    @select="handleSelectType"
-                />
+                <Step1 v-if="publishStore.activeStep === 0" @select="handleSelectType" />
 
                 <!-- 第二步：填写详细信息 -->
                 <Step2
@@ -79,6 +84,7 @@
     import { useGoodsPublishStore } from '@/stores/goodsPublish'
     import { ElMessage } from 'element-plus'
     import { Check } from '@element-plus/icons-vue'
+    import { getMerchantApi } from '@/api/client'
     import Step1 from './model/Step1.vue'
     import Step2 from './model/Step2.vue'
     import Step3 from './model/Step3.vue'
@@ -134,7 +140,7 @@
 
     const submitForm = async () => {
         if (publishStore.displayImages.length === 0) {
-            return ElMessage.warning('请至少上传一张商品展示图')
+            return ElMessage.warning('请至少上传一张商品展示图(第一张是主图)')
         }
 
         if (!publishStore.hasValidSpec) {
@@ -144,7 +150,6 @@
         publishStore.setSubmitting(true)
 
         try {
-            const { getMerchantApi } = await import('@/api/client')
             const api = getMerchantApi()
             const payload = publishStore.getSubmitPayload()
 
@@ -193,7 +198,7 @@
                 publishStore.setReadonly(route.query.readonly === 'true')
                 await publishStore.loadGoodsData(newId as string)
             }
-        }
+        },
     )
 </script>
 

@@ -57,7 +57,7 @@
                     </el-form-item>
 
                     <!-- 商品展示图 -->
-                    <el-form-item label="商品展示图">
+                    <el-form-item label="商品展示图" prop="img">
                         <div class="flex flex-col gap-2.5">
                             <draggable
                                 v-model="displayFileList"
@@ -113,7 +113,8 @@
                             </draggable>
                             <div class="mt-2 text-gray-400 text-xs flex items-center">
                                 <el-icon class="mr-1"><InfoFilled /></el-icon>
-                                最多上传 5 张展示图, 第一张为主图. 支持拖拽交换图片顺序
+                                至少上传 1 张，最多上传 5 张展示图, 第一张为主图.
+                                支持拖拽交换图片顺序
                             </div>
                         </div>
                     </el-form-item>
@@ -242,6 +243,8 @@
     import { ElMessage } from 'element-plus'
     import CapsuleToggle from '@/components/CapsuleToggle.vue'
     import SkuSpecification from './SkuSpecification.vue'
+    import { uploadImage } from '@/api/common/common'
+    import { getImageURL } from '@/utils/image'
     import type {
         GoodsPublishPayload,
         GoodsSpecification,
@@ -300,6 +303,13 @@
         name: [{ required: true, message: '请输入商品名称', trigger: 'blur' }],
         categoryId: [{ required: true, message: '请选择商品分类', trigger: 'change' }],
         unit: [{ required: true, message: '请选择商品单位', trigger: 'change' }],
+        img: [
+            {
+                required: true,
+                message: '请至少上传一张商品展示图(第一张是主图)',
+                trigger: 'change',
+            },
+        ],
     }
 
     // 图片预览
@@ -308,26 +318,30 @@
         previewVisible.value = true
     }
 
-    // 展示图处理
-    const uploadDisplayImage = (uploadFile: any) => {
-        const file = uploadFile.raw
-        if (!file) return
-        if (!validateImage(file)) return
+    // 通用图处理逻辑
+    const handleImageUpload = async (file: File) => {
+        const formData = new FormData()
+        formData.append('file', file)
+        const res = await uploadImage(formData)
+        const relativePath = res.data.url
 
-        const reader = new FileReader()
-        reader.onload = (e) => {
-            const url = e.target?.result as string
-            const uploadedFile: FileItem = {
-                name: file.name,
-                url: url,
-                rawUrl: url,
-                uid: Date.now(),
-            }
-            const newList = [...displayFileList.value, uploadedFile]
-            displayFileList.value = newList
-            syncDisplayImages(newList)
+        return {
+            name: file.name,
+            url: getImageURL(relativePath),
+            rawUrl: relativePath,
+            uid: Date.now(),
         }
-        reader.readAsDataURL(file)
+    }
+
+    // 展示图处理
+    const uploadDisplayImage = async (uploadFile: any) => {
+        const file = uploadFile.raw
+        if (!file || !validateImage(file)) return
+
+        const uploadedFile = await handleImageUpload(file)
+        const newList = [...displayFileList.value, uploadedFile]
+        displayFileList.value = newList
+        syncDisplayImages(newList)
     }
 
     const removeDisplayImage = (index: number) => {
@@ -349,28 +363,18 @@
             props.formData.img = ''
             props.formData.imgList = ''
         }
+        formRef.value?.validateField('img').catch(() => {})
     }
 
     // 详情图处理
-    const uploadDetailImage = (uploadFile: any) => {
+    const uploadDetailImage = async (uploadFile: any) => {
         const file = uploadFile.raw
-        if (!file) return
-        if (!validateImage(file)) return
+        if (!file || !validateImage(file)) return
 
-        const reader = new FileReader()
-        reader.onload = (e) => {
-            const url = e.target?.result as string
-            const uploadedFile: FileItem = {
-                name: file.name,
-                url: url,
-                rawUrl: url,
-                uid: Date.now(),
-            }
-            const newList = [...detailFileList.value, uploadedFile]
-            detailFileList.value = newList
-            syncDetailImages(newList)
-        }
-        reader.readAsDataURL(file)
+        const uploadedFile = await handleImageUpload(file)
+        const newList = [...detailFileList.value, uploadedFile]
+        detailFileList.value = newList
+        syncDetailImages(newList)
     }
 
     const removeDetailImage = (index: number) => {

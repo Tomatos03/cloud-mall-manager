@@ -4,12 +4,7 @@
         <!-- 顶部操作区域 -->
         <div class="flex justify-between items-center mb-4">
             <!-- 只有商家用户才能添加商品 -->
-            <el-button
-                v-if="userStore.isMerchant"
-                type="primary"
-                class="add-btn"
-                @click="onAdd"
-            >
+            <el-button v-if="userStore.isMerchant" type="primary" class="add-btn" @click="onAdd">
                 <el-icon class="mr-1"><Plus /></el-icon>
                 添加商品
             </el-button>
@@ -29,7 +24,9 @@
                             fit="cover"
                         >
                             <template #error>
-                                <div class="w-full h-full bg-gray-50 flex items-center justify-center text-gray-300">
+                                <div
+                                    class="w-full h-full bg-gray-50 flex items-center justify-center text-gray-300"
+                                >
                                     <el-icon><Picture /></el-icon>
                                 </div>
                             </template>
@@ -51,22 +48,12 @@
                     <span v-else class="text-gray-300">-</span>
                 </template>
 
-                <template #inventory="{ row }">
-                    <el-tag
-                        :type="row.inventory > 10 ? 'success' : row.inventory > 0 ? 'warning' : 'danger'"
-                        effect="light"
-                        class="border-none px-3 rounded-full"
-                    >
-                        {{ row.inventory }}
-                    </el-tag>
-                </template>
-
                 <template #status="{ row }">
                     <el-switch
                         :model-value="statusOf(row)"
                         :loading="row.__publishing"
                         @change="onTogglePublished(row, $event)"
-                        style="--el-switch-on-color: #3b82f6;"
+                        style="--el-switch-on-color: #3b82f6"
                     />
                 </template>
 
@@ -85,8 +72,11 @@
                         </el-button>
                     </template>
 
-                    <!-- 商家可以编辑和删除 -->
+                    <!-- 商家可以查看、编辑和删除 -->
                     <template v-if="userStore.isMerchant">
+                        <el-button link type="primary" size="small" @click="onView(row)">
+                            查看
+                        </el-button>
                         <el-button link type="primary" size="small" @click="onEdit(row)">
                             编辑
                         </el-button>
@@ -145,9 +135,8 @@
         { id: '2', label: '商品名称', key: 'name', minWidth: 200 },
         { id: '3', label: '价格', key: 'price', width: 120 },
         { id: '4', label: '单位', key: 'unit', width: 80 },
-        { id: '5', label: '库存', key: 'inventory', width: 100 },
-        { id: '6', label: '状态', key: 'status', width: 100 },
-        { id: '7', label: '简介', key: 'info', minWidth: 150 },
+        { id: '5', label: '状态', key: 'status', width: 100 },
+        { id: '6', label: '简介', key: 'info', minWidth: 150 },
     ]
 
     const data = ref<GoodsItem[]>([])
@@ -164,7 +153,7 @@
         try {
             const res = await getApi().fetchGoodsPage({
                 page: page.value,
-                pageSize: pageSize.value
+                pageSize: pageSize.value,
             })
             data.value = res.data.records || []
             total.value = Number(res.data.total) || 0
@@ -193,8 +182,9 @@
         }
     }
 
-    const onView = (row: GoodsItem) => {
-        currentGoods.value = row
+    const onView = async (row: GoodsItem) => {
+        const res = await getMerchantApi().getGoodsById(row.id)
+        currentGoods.value = res.data
         detailVisible.value = true
     }
 
@@ -209,15 +199,13 @@
     const onDelete = (row: GoodsItem) => {
         ElMessageBox.confirm('确定要删除该商品吗？', '提示', {
             type: 'warning',
-            confirmButtonClass: 'el-button--danger'
+            confirmButtonClass: 'el-button--danger',
         }).then(async () => {
             await getMerchantApi().deleteGoods(row.id)
             ElMessage.success('删除成功')
             loadData()
         })
     }
-
-
 
     const statusOf = (row: GoodsItem) => {
         return !!row.status
@@ -226,7 +214,8 @@
     const onTogglePublished = async (row: GoodsItem & { __publishing?: boolean }, val: boolean) => {
         row.__publishing = true
         try {
-            await getMerchantApi().updateGoods({ ...row, status: val })
+            const status = val ? 1 : 0
+            await getMerchantApi().updateGoodsStatus(row.id, status)
             row.status = val
             ElMessage.success(val ? '已上架' : '已下架')
         } finally {
@@ -241,32 +230,32 @@
 </script>
 
 <style scoped>
-.add-btn {
-    border-radius: 8px;
-    padding: 10px 20px;
-    font-weight: 600;
-    box-shadow: 0 4px 12px -2px rgba(59, 130, 246, 0.3);
-}
+    .add-btn {
+        border-radius: 8px;
+        padding: 10px 20px;
+        font-weight: 600;
+        box-shadow: 0 4px 12px -2px rgba(59, 130, 246, 0.3);
+    }
 
-.custom-pagination :deep(.el-pagination__total),
-.custom-pagination :deep(.el-pagination__jump) {
-    color: #64748b;
-    font-weight: 500;
-}
+    .custom-pagination :deep(.el-pagination__total),
+    .custom-pagination :deep(.el-pagination__jump) {
+        color: #64748b;
+        font-weight: 500;
+    }
 
-.custom-pagination :deep(.btn-prev),
-.custom-pagination :deep(.btn-next),
-.custom-pagination :deep(.el-pager li) {
-    background-color: white !important;
-    border: 1px solid #f1f5f9 !important;
-    border-radius: 6px !important;
-    transition: all 0.2s;
-}
+    .custom-pagination :deep(.btn-prev),
+    .custom-pagination :deep(.btn-next),
+    .custom-pagination :deep(.el-pager li) {
+        background-color: white !important;
+        border: 1px solid #f1f5f9 !important;
+        border-radius: 6px !important;
+        transition: all 0.2s;
+    }
 
-.custom-pagination :deep(.el-pager li.is-active) {
-    background-color: #3b82f6 !important;
-    border-color: #3b82f6 !important;
-    color: white !important;
-    box-shadow: 0 2px 8px -2px rgba(59, 130, 246, 0.2);
-}
+    .custom-pagination :deep(.el-pager li.is-active) {
+        background-color: #3b82f6 !important;
+        border-color: #3b82f6 !important;
+        color: white !important;
+        box-shadow: 0 2px 8px -2px rgba(59, 130, 246, 0.2);
+    }
 </style>
