@@ -6,7 +6,7 @@
         destroy-on-close
         class="goods-detail-dialog"
     >
-        <div v-if="data" class="h-[600px] overflow-y-auto pr-2 space-y-6 pb-6">
+        <div v-if="data" class="h-150 overflow-y-auto pr-2 space-y-6 pb-6">
             <!-- 1. 基本信息 -->
             <el-descriptions :title="'基本信息'" :column="2" border>
                 <el-descriptions-item label="商品名称" :span="2">
@@ -19,11 +19,11 @@
                     {{ data.categoryPath }}
                 </el-descriptions-item>
                 <el-descriptions-item
-                    v-if="data.minPriceStr !== undefined && data.maxPriceStr !== undefined"
+                    v-if="data.minPrice !== undefined && data.maxPrice !== undefined"
                     label="销售价格"
                 >
                     <span class="text-rose-500 font-bold">
-                        {{ formatPrice(data.minPriceStr, data.maxPriceStr) }}
+                        {{ formatPrice(data.minPrice, data.maxPrice) }}
                     </span>
                 </el-descriptions-item>
                 <el-descriptions-item label="计价单位">
@@ -37,7 +37,7 @@
                         {{ data.status ? '已上架' : '未上架' }}
                     </el-tag>
                 </el-descriptions-item>
-                <el-descriptions-item v-if="isAdmin" label="所属店铺" :span="2">
+                <el-descriptions-item label="所属店铺" :span="2">
                     {{ data.storeName || '-' }}
                 </el-descriptions-item>
             </el-descriptions>
@@ -48,9 +48,9 @@
                     <span class="text-sm font-bold text-gray-800">商品图示</span>
                 </div>
                 <div class="flex flex-wrap gap-3">
-                    <template v-if="images">
+                    <template v-if="data.displayImageUrls && data.displayImageUrls.length > 0">
                         <div
-                            v-for="(img, i) in images"
+                            v-for="(img, i) in data.displayImageUrls"
                             :key="i"
                             class="relative w-28 h-28 rounded border border-gray-100 overflow-hidden"
                         >
@@ -58,7 +58,7 @@
                                 :src="img"
                                 fit="cover"
                                 class="w-full h-full cursor-zoom-in"
-                                :preview-src-list="images"
+                                :preview-src-list="data.displayImageUrls"
                                 :initial-index="i"
                                 preview-teleported
                             />
@@ -75,13 +75,13 @@
             </section>
 
             <!-- 详情描述图 -->
-            <section v-if="data.descriptionImgList && data.descriptionImgList.length > 0">
+            <section v-if="data.descriptionImageUrls && data.descriptionImageUrls.length > 0">
                 <div class="mb-3">
                     <span class="text-sm font-bold text-gray-800">商品详情图</span>
                 </div>
                 <div class="flex flex-wrap gap-3">
                     <div
-                        v-for="(img, i) in data.descriptionImgList"
+                        v-for="(img, i) in data.descriptionImageUrls"
                         :key="i"
                         class="relative w-28 h-28 rounded border border-gray-100 overflow-hidden"
                     >
@@ -89,7 +89,7 @@
                             :src="img"
                             fit="cover"
                             class="w-full h-full cursor-zoom-in"
-                            :preview-src-list="data.descriptionImgList"
+                            :preview-src-list="data.descriptionImageUrls"
                             :initial-index="i"
                             preview-teleported
                         />
@@ -152,7 +152,9 @@
                                 </div>
                             </template>
                             <template #priceStr="{ row }">
-                                <span class="font-bold text-rose-500">{{ row.priceStr }}</span>
+                                <span class="font-bold text-rose-500">{{
+                                    formatPrice(row.price)
+                                }}</span>
                             </template>
                             <template #inventory="{ row }">
                                 <span
@@ -174,18 +176,15 @@
                     </div>
                 </div>
             </section>
-
-
         </div>
     </el-dialog>
 </template>
 
 <script setup lang="ts">
     import { computed, toRefs } from 'vue'
-    import { useUserStore } from '@/stores/user'
-    import type { GoodsDetail } from '@/api/common'
-    import { formatPrice } from '@/utils/price'
+    import type { GoodsDetail } from '@/api/goods'
     import Table from '@/components/table/Table.vue'
+    import { formatPrice } from '@/utils/money'
 
     interface Props {
         data: GoodsDetail
@@ -193,7 +192,6 @@
     }
 
     const props = defineProps<Props>()
-    const userStore = useUserStore()
     const { data, modelValue } = toRefs<Props>(props)
 
     const emit = defineEmits<{
@@ -203,19 +201,6 @@
     const visible = computed({
         get: () => modelValue.value,
         set: (value) => emit('update:modelValue', value),
-    })
-
-    // 判断是否为管理员
-    const isAdmin = computed(() => userStore.isAdmin)
-
-    // 合并 mainImg 和 imgList 成一个图片列表
-    const images = computed(() => {
-        const images: string[] = [data.value.mainImg]
-        if (data.value?.imgList && data.value.imgList.length > 0) {
-            images.push(...data.value.imgList)
-        }
-
-        return images
     })
 
     // SKU 表格列配置

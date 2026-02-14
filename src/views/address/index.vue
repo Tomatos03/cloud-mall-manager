@@ -1,11 +1,45 @@
 <template>
     <div class="h-full flex flex-col p-5">
+        <div class="mb-4">
+            <el-button
+                v-auth="ADDRESS_PERMISSIONS.ADD"
+                type="primary"
+                @click="onAdd"
+            >
+                新增地址
+            </el-button>
+        </div>
+
         <div class="flex-1 overflow-hidden">
             <Table :columns="columns" :data="data" height="100%" :showId="true">
                 <template #action="{ row }">
-                    <el-button size="small" type="primary" @click="onView(row)">查看</el-button>
-                    <el-button size="small" type="warning" @click="onEdit(row)">编辑</el-button>
-                    <el-button size="small" type="danger" @click="onDelete(row)">删除</el-button>
+                    <el-button
+                        v-auth="ADDRESS_PERMISSIONS.VIEW"
+                        link
+                        type="primary"
+                        size="small"
+                        @click="onView(row)"
+                    >
+                        查看
+                    </el-button>
+                    <el-button
+                        v-auth="ADDRESS_PERMISSIONS.EDIT"
+                        link
+                        type="primary"
+                        size="small"
+                        @click="onEdit(row)"
+                    >
+                        编辑
+                    </el-button>
+                    <el-button
+                        v-auth="ADDRESS_PERMISSIONS.DELETE"
+                        link
+                        type="danger"
+                        size="small"
+                        @click="onDelete(row)"
+                    >
+                        删除
+                    </el-button>
                 </template>
                 <template #regionCode="{ row }">
                     <span class="region-path">{{ formatRegion(row.regionCode) }}</span>
@@ -41,12 +75,19 @@
 
 <script setup lang="ts">
     import { ref, onMounted } from 'vue'
-    import AddressFormDialog from './model/AddressFormDialog.vue'
+    import AddressFormDialog from './modules/AddressFormDialog.vue'
     import Table from '@/components/table/Table.vue'
-    import type { AddressItem } from '@/api/admin/address'
     import { ElMessage, ElMessageBox } from 'element-plus'
-    import { getAdminApi } from '@/api/client'
+    import {
+        fetchAddressPage,
+        setDefaultAddress,
+        deleteAddress,
+        fetchAddressDetail,
+        updateAddress,
+        type AddressItem,
+    } from '@/api/address'
     import { getRegionPath } from '@/utils/china-region-data'
+    import { ADDRESS_PERMISSIONS } from '@/constants/permissions'
 
     const columns = [
         { id: '1', label: '用户ID', key: 'userId' },
@@ -67,8 +108,7 @@
     const formData = ref<Partial<AddressItem>>({})
 
     const loadData = async () => {
-        const api = getAdminApi()
-        const res = await api.fetchAddressPage({ page: page.value, pageSize: pageSize.value })
+        const res = await fetchAddressPage({ page: page.value, pageSize: pageSize.value })
         data.value = res.data.records
         total.value = Number(res.data.total) || 0
     }
@@ -97,13 +137,18 @@
 
     const onToggleDefault = async (row: AddressItem) => {
         try {
-            const api = getAdminApi()
-            await api.setDefaultAddress(row.id)
+            await setDefaultAddress(row.id)
             ElMessage.success('默认地址已更新')
             loadData()
         } catch {
             ElMessage.error('切换默认地址失败')
         }
+    }
+
+    const onAdd = () => {
+        isEdit.value = false
+        formData.value = {}
+        dialogVisible.value = true
     }
 
     const onDelete = async (row: AddressItem) => {
@@ -114,8 +159,7 @@
                 type: 'warning',
             })
 
-            const api = getAdminApi()
-            await api.deleteAddress(row.id)
+            await deleteAddress(row.id)
             ElMessage.success('删除成功')
             loadData()
         } catch (err: unknown) {
@@ -128,8 +172,7 @@
     const onView = async (row: AddressItem) => {
         isEdit.value = false
         try {
-            const api = getAdminApi()
-            const res = await api.fetchAddressDetail(row.id)
+            const res = await fetchAddressDetail(row.id)
             formData.value = res.data
             dialogVisible.value = true
         } catch {
@@ -140,8 +183,7 @@
     const onEdit = async (row: AddressItem) => {
         isEdit.value = true
         try {
-            const api = getAdminApi()
-            const res = await api.fetchAddressDetail(row.id)
+            const res = await fetchAddressDetail(row.id)
             formData.value = res.data
             dialogVisible.value = true
         } catch {
@@ -156,8 +198,7 @@
     const handleConfirm = async (form: Partial<AddressItem>) => {
         try {
             if (form.id) {
-                const api = getAdminApi()
-                await api.updateAddress(form.id, form)
+                await updateAddress(form.id, form)
                 ElMessage.success('更新成功')
                 dialogVisible.value = false
                 loadData()

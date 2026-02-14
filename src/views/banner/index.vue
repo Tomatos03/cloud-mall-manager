@@ -1,8 +1,11 @@
 <template>
     <div class="h-full flex flex-col p-5">
         <div class="mb-4 space-x-2">
-            <el-button type="primary" :icon="Plus" @click="onAdd">添加轮播图</el-button>
+            <el-button v-auth="BANNER_PERMISSIONS.ADD" type="primary" :icon="Plus" @click="onAdd"
+                >添加轮播图</el-button
+            >
             <el-button
+                v-auth="BANNER_PERMISSIONS.DELETE"
                 type="danger"
                 :icon="Delete"
                 @click="onBatchDelete"
@@ -17,6 +20,7 @@
                 :data="data"
                 height="100%"
                 :showId="true"
+                :showSelection="true"
                 v-model:selectList="selectList"
             >
                 <template #imageUrl="{ row }">
@@ -26,7 +30,15 @@
                         preview-teleported
                         fit="cover"
                         class="w-16 h-10 rounded shadow-sm border border-gray-100"
-                    />
+                    >
+                        <template #error>
+                            <div
+                                class="w-full h-full bg-gray-100 flex items-center justify-center text-gray-400 text-xs"
+                            >
+                                无图片
+                            </div>
+                        </template>
+                    </el-image>
                 </template>
 
                 <template #isRecommend="{ row }">
@@ -38,8 +50,22 @@
                 </template>
 
                 <template #action="{ row }">
-                    <el-button size="small" type="warning" @click="onEdit(row)">编辑</el-button>
-                    <el-button size="small" type="danger" @click="onDelete(row)">删除</el-button>
+                    <el-button
+                        v-auth="BANNER_PERMISSIONS.EDIT"
+                        link
+                        type="primary"
+                        size="small"
+                        @click="onEdit(row)"
+                        >编辑</el-button
+                    >
+                    <el-button
+                        v-auth="BANNER_PERMISSIONS.DELETE"
+                        link
+                        type="danger"
+                        size="small"
+                        @click="onDelete(row)"
+                        >删除</el-button
+                    >
                 </template>
             </Table>
         </div>
@@ -69,11 +95,17 @@
 <script setup lang="ts">
     import { ref, onMounted } from 'vue'
     import Table from '@/components/table/Table.vue'
-    import type { BannerItem } from '@/api/admin/banner'
     import { Plus, Delete } from '@element-plus/icons-vue'
     import { ElMessage, ElMessageBox } from 'element-plus'
-    import { getAdminApi } from '@/api/client'
-    import BannerFormDialog from './model/BannerFormDialog.vue'
+    import {
+        fetchBannerPage,
+        saveBanner,
+        batchDeleteBanner,
+        updateBannerRecommend,
+    } from '@/api/banner'
+    import BannerFormDialog from './modules/BannerFormDialog.vue'
+    import type { BannerItem } from '@/api/banner'
+    import { BANNER_PERMISSIONS } from '@/constants/permissions'
 
     const columns = [
         { id: '1', label: '轮播图预览', key: 'imageUrl' },
@@ -88,8 +120,7 @@
     const selectList = ref<BannerItem[]>([])
 
     const loadData = async () => {
-        const api = getAdminApi()
-        const res = await api.fetchBannerPage({ page: page.value, pageSize: pageSize.value })
+        const res = await fetchBannerPage({ page: page.value, pageSize: pageSize.value })
         data.value = res.data.records
         total.value = Number(res.data.total) || 0
     }
@@ -122,14 +153,8 @@
 
         submitLoading.value = true
         try {
-            const api = getAdminApi()
-            if (payload.id) {
-                await api.updateBanner(String(payload.id), payload)
-                ElMessage.success('更新成功')
-            } else {
-                await api.addBanner(payload)
-                ElMessage.success('添加成功')
-            }
+            await saveBanner(payload)
+            ElMessage.success(payload.id ? '更新成功' : '添加成功')
 
             showAddModal.value = false
             selectedBanner.value = null
@@ -159,8 +184,7 @@
             )
 
             const ids = selectList.value.map((item) => item.id)
-            const api = getAdminApi()
-            await api.batchDeleteBanner(ids)
+            await batchDeleteBanner(ids)
             ElMessage.success('删除成功')
             selectList.value = []
             loadData()
@@ -201,8 +225,7 @@
                 },
             )
 
-            const api = getAdminApi()
-            await api.batchDeleteBanner([row.id])
+            await batchDeleteBanner([row.id])
             ElMessage.success('删除成功')
             loadData()
         } catch (err: unknown) {
@@ -225,8 +248,7 @@
         }
 
         try {
-            const api = getAdminApi()
-            await api.updateBannerRecommend(String(id), isRecommend)
+            await updateBannerRecommend(String(id), isRecommend)
             ElMessage.success('设置成功')
         } catch {
             if (row) {

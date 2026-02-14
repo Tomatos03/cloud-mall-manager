@@ -7,6 +7,7 @@ import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
 import App from './App.vue'
 import router from './router'
+import { setupAuthDirective } from '@/directives/auth'
 
 const app = createApp(App)
 
@@ -22,5 +23,8 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
 app.use(pinia)
 app.use(ElementPlus)
 app.use(router)
+
+// 注册权限指令 v-auth
+setupAuthDirective(app)
 
 app.mount('#app')

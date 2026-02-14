@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { type Unit } from '@/api/common/unit'
-import { fetchUnitList } from '@/api/merchant/unit'
+import { type Unit } from '@/api/unit'
+import { fetchUnitList } from '@/api/unit'
 
 export const useUnitStore = defineStore('unit', () => {
     const loading = ref(false)
@@ -46,10 +46,20 @@ export const useUnitStore = defineStore('unit', () => {
         return unit?.name || '-'
     }
 
+    /**
+     * 清空单位列表缓存
+     */
+    const clear = () => {
+        _unitList.value = []
+        _listLoaded.value = false
+        loading.value = false
+    }
+
     return {
         unitList,
         loading,
         loadUnitList,
         getUnitName,
+        clear,
     }
 })

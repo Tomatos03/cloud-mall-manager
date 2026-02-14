@@ -1,11 +1,7 @@
 <template>
     <div class="h-full flex flex-col p-6 bg-[#f4f7fe]">
         <!-- 搜索筛选区域 -->
-        <OrderFilter
-            v-model="selectedStatus"
-            @change="handleStatusChange"
-            @reset="handleReset"
-        />
+        <OrderFilter v-model="selectedStatus" @change="handleStatusChange" @reset="handleReset" />
 
         <!-- 表格区域 -->
         <div class="flex-1 overflow-hidden">
@@ -23,7 +19,7 @@
                     </el-tag>
                 </template>
                 <template #totalPrice="{ row }">
-                    <span class="text-rose-500 font-bold">￥{{ row.totalPriceText }}</span>
+                    <span class="text-rose-500 font-bold">{{ formatPrice(row.totalPrice) }}</span>
                 </template>
                 <template #buyerName="{ row }">
                     <span class="text-gray-600">{{ row.buyerName }}</span>
@@ -47,30 +43,33 @@
                     <span class="text-gray-400 text-xs">{{ row.createTime }}</span>
                 </template>
                 <template #action="{ row }">
-                    <el-button link type="primary" size="small" @click="onDetail(row)">
+                    <el-button
+                        v-auth="ORDER_PERMISSIONS.VIEW"
+                        link
+                        type="primary"
+                        size="small"
+                        @click="onDetail(row)"
+                    >
                         详情
                     </el-button>
-                    <!-- 商家专用操作：发货、取消 -->
-                    <template v-if="userStore.isMerchant">
-                        <el-button
-                            v-if="row.orderStatus === SubOrderStatus.CREATED"
-                            link
-                            type="danger"
-                            size="small"
-                            @click="onCancel(row)"
-                        >
-                            取消
-                        </el-button>
-                        <el-button
-                            v-if="row.orderStatus === SubOrderStatus.PAID"
-                            link
-                            type="warning"
-                            size="small"
-                            @click="onShip(row)"
-                        >
-                            发货
-                        </el-button>
-                    </template>
+                    <el-button
+                        v-auth="ORDER_PERMISSIONS.EDIT"
+                        link
+                        type="warning"
+                        size="small"
+                        @click="onEdit(row)"
+                    >
+                        编辑
+                    </el-button>
+                    <el-button
+                        v-auth="ORDER_PERMISSIONS.DELETE"
+                        link
+                        type="danger"
+                        size="small"
+                        @click="onDelete(row)"
+                    >
+                        删除
+                    </el-button>
                 </template>
             </Table>
         </div>
@@ -97,23 +96,28 @@
 
 <script setup lang="ts">
     import { ref, onMounted } from 'vue'
-    import Table from '@/components/table/Table.vue'
-    import OrderFilter from './model/OrderFilter.vue'
-    import OrderDetailDialog from './model/OrderDetailDialog.vue'
-    import type { OrderItem, OrderPageParams, OrderStatus } from '@/api/common/order'
-    import {
-        OrderType,
-        SubOrderStatus,
-        getOrderTypeLabel
-    } from '@/api/common/order'
-    import { getApi, getMerchantApi } from '@/api/client'
-    import { useUserStore } from '@/stores/user'
     import { ElMessage, ElMessageBox } from 'element-plus'
+    import Table from '@/components/table/Table.vue'
+    import OrderFilter from './modules/OrderFilter.vue'
+    import OrderDetailDialog from './modules/OrderDetailDialog.vue'
+    import { fetchOrderPage, getOrderStatusInfo, OrderType } from '@/api/order'
+    import type { OrderItem } from '@/api/order'
+    import type { PageParams } from '@/api/common'
+    import { formatPrice } from '@/utils/money'
+    import { ORDER_PERMISSIONS } from '@/constants/permissions'
 
-    const userStore = useUserStore()
+    // 获取订单类型标签
+    const getOrderTypeLabel = (orderType: OrderType): string => {
+        const labels: Record<string, string> = {
+            PARENT: '主订单',
+            SUB: '子订单',
+            NORMAL: '普通订单',
+        }
+        return labels[String(orderType)] || String(orderType)
+    }
 
     const columns = [
-        { id: '1', label: '订单号', key: 'orderNo' },
+        { id: '1', label: '订单号', key: 'orderNo', minWidth: 200 },
         { id: '2', label: '订单类型', key: 'orderType' },
         { id: '4', label: '总价', key: 'totalPrice' },
         { id: '5', label: '买家', key: 'buyerName' },
@@ -132,16 +136,9 @@
     const selectedStatus = ref<string>('ALL')
 
     /**
-     * 获取订单状态信息（基于当前用户角色）
-     */
-    const getOrderStatusInfo = (orderType: OrderType, status: OrderStatus) => {
-        return getApi().getOrderStatusInfo(orderType, status)
-    }
-
-    /**
      * 根据订单类型获取标签类型
      */
-    const getOrderTypeTag = (orderType: OrderType | string): 'primary' | 'success' | 'warning' => {
+    const getOrderTypeTag = (orderType: OrderType): 'primary' | 'success' | 'warning' => {
         switch (orderType) {
             case OrderType.PARENT:
                 return 'success'
@@ -155,22 +152,18 @@
     }
 
     const loadData = async () => {
-        const params: OrderPageParams = {
+        const params: PageParams = {
             page: page.value,
-            pageSize: pageSize.value
+            pageSize: pageSize.value,
         }
 
         if (selectedStatus.value !== 'ALL') {
             params.status = selectedStatus.value
         }
 
-        try {
-            const res = await getApi().fetchOrderPage(params)
-            data.value = res.data.records
-            total.value = Number(res.data.total) || 0
-        } catch (error) {
-            console.error('Failed to load orders:', error)
-        }
+        const res = await fetchOrderPage(params)
+        data.value = res.data.records
+        total.value = Number(res.data.total) || 0
     }
 
     const handlePageChange = (val: number) => {
@@ -200,33 +193,18 @@
         detailDialogVisible.value = true
     }
 
-    const onCancel = (row: OrderItem) => {
-        ElMessageBox.confirm('确定要取消该订单吗？', '提示', {
-            type: 'warning',
-            confirmButtonClass: 'el-button--danger'
-        }).then(async () => {
-            try {
-                await getMerchantApi().cancelOrder(row.orderNo)
-                ElMessage.success('订单已取消')
-                loadData()
-            } catch (error) {
-                console.error('Failed to cancel order:', error)
-            }
-        })
+    const onEdit = (row: OrderItem) => {
+        ElMessage.info('编辑订单功能开发中...')
     }
 
-    const onShip = (row: OrderItem) => {
-        ElMessageBox.confirm('确定要发货吗？', '提示', {
-            type: 'info',
-        }).then(async () => {
-            try {
-                await getMerchantApi().shipOrder(row.orderNo)
-                ElMessage.success('发货成功')
-                loadData()
-            } catch (error) {
-                console.error('Failed to ship order:', error)
-            }
+    const onDelete = async (row: OrderItem) => {
+        await ElMessageBox.confirm(`确定要删除订单 "${row.orderNo}" 吗？`, '删除确认', {
+            confirmButtonText: '确定',
+            cancelButtonText: '取消',
+            type: 'warning',
         })
+        ElMessage.success('订单删除成功')
+        loadData()
     }
 
     onMounted(() => {
@@ -235,25 +213,25 @@
 </script>
 
 <style scoped>
-.custom-pagination :deep(.el-pagination__total),
-.custom-pagination :deep(.el-pagination__jump) {
-    color: #64748b;
-    font-weight: 500;
-}
+    .custom-pagination :deep(.el-pagination__total),
+    .custom-pagination :deep(.el-pagination__jump) {
+        color: #64748b;
+        font-weight: 500;
+    }
 
-.custom-pagination :deep(.btn-prev),
-.custom-pagination :deep(.btn-next),
-.custom-pagination :deep(.el-pager li) {
-    background-color: white !important;
-    border: 1px solid #f1f5f9 !important;
-    border-radius: 6px !important;
-    transition: all 0.2s;
-}
+    .custom-pagination :deep(.btn-prev),
+    .custom-pagination :deep(.btn-next),
+    .custom-pagination :deep(.el-pager li) {
+        background-color: white !important;
+        border: 1px solid #f1f5f9 !important;
+        border-radius: 6px !important;
+        transition: all 0.2s;
+    }
 
-.custom-pagination :deep(.el-pager li.is-active) {
-    background-color: #3b82f6 !important;
-    border-color: #3b82f6 !important;
-    color: white !important;
-    box-shadow: 0 2px 8px -2px rgba(59, 130, 246, 0.2);
-}
+    .custom-pagination :deep(.el-pager li.is-active) {
+        background-color: #3b82f6 !important;
+        border-color: #3b82f6 !important;
+        color: white !important;
+        box-shadow: 0 2px 8px -2px rgba(59, 130, 246, 0.2);
+    }
 </style>

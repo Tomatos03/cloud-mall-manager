@@ -1,8 +1,11 @@
 <template>
     <div class="h-full flex flex-col p-5">
         <div class="mb-4 space-x-2">
-            <el-button type="primary" :icon="Plus" @click="onAdd">添加单位</el-button>
+            <el-button v-auth="UNIT_PERMISSIONS.ADD" type="primary" :icon="Plus" @click="onAdd"
+                >添加单位</el-button
+            >
             <el-button
+                v-auth="UNIT_PERMISSIONS.DELETE"
                 type="danger"
                 :icon="Delete"
                 @click="onBatchDelete"
@@ -17,6 +20,7 @@
                 :data="data"
                 height="100%"
                 :showId="true"
+                :showSelection="true"
                 v-model:selectList="selectList"
             >
                 <template #status="{ row }">
@@ -30,8 +34,22 @@
                 </template>
 
                 <template #action="{ row }">
-                    <el-button size="small" type="warning" @click="onEdit(row)">编辑</el-button>
-                    <el-button size="small" type="danger" @click="onDelete(row)">删除</el-button>
+                    <el-button
+                        v-auth="UNIT_PERMISSIONS.EDIT"
+                        link
+                        type="primary"
+                        size="small"
+                        @click="onEdit(row)"
+                        >编辑</el-button
+                    >
+                    <el-button
+                        v-auth="UNIT_PERMISSIONS.DELETE"
+                        link
+                        type="danger"
+                        size="small"
+                        @click="onDelete(row)"
+                        >删除</el-button
+                    >
                 </template>
             </Table>
         </div>
@@ -63,9 +81,17 @@
     import Table from '@/components/table/Table.vue'
     import { Plus, Delete } from '@element-plus/icons-vue'
     import { ElMessage, ElMessageBox } from 'element-plus'
-    import { getAdminApi } from '@/api/client'
     import UnitFormDialog from './model/UnitFormDialog.vue'
-    import type { UnitItem } from '@/api/common/unit'
+    import {
+        fetchUnitPage,
+        addUnit,
+        updateUnit,
+        deleteUnit,
+        batchDeleteUnit,
+        updateUnitStatus,
+    } from '@/api/unit'
+    import type { UnitItem } from '@/api/unit'
+    import { UNIT_PERMISSIONS } from '@/constants/permissions'
 
     const columns = [
         { id: '1', label: '单位名称', key: 'name' },
@@ -81,8 +107,7 @@
     const selectList = ref<UnitItem[]>([])
 
     const loadData = async () => {
-        const api = getAdminApi()
-        const res = await api.fetchUnitPage({ page: page.value, pageSize: pageSize.value })
+        const res = await fetchUnitPage({ page: page.value, pageSize: pageSize.value })
         data.value = res.data.records
         total.value = Number(res.data.total) || 0
         isInit = false
@@ -111,12 +136,11 @@
     const handleSubmit = async (payload: Partial<UnitItem>) => {
         submitLoading.value = true
         try {
-            const api = getAdminApi()
             if (payload.id) {
-                await api.updateUnit(String(payload.id), payload)
+                await updateUnit(String(payload.id), payload)
                 ElMessage.success('更新成功')
             } else {
-                await api.addUnit(payload)
+                await addUnit(payload)
                 ElMessage.success('添加成功')
             }
 
@@ -141,8 +165,7 @@
         })
 
         const ids = selectList.value.map((item) => item.id)
-        const api = getAdminApi()
-        await api.batchDeleteUnit(ids)
+        await batchDeleteUnit(ids)
         ElMessage.success('删除成功')
         selectList.value = []
         loadData()
@@ -162,8 +185,7 @@
             type: 'warning',
         })
 
-        const api = getAdminApi()
-        await api.deleteUnit(String(row.id))
+        await deleteUnit(String(row.id))
         ElMessage.success('删除成功')
         loadData()
     }
@@ -180,8 +202,7 @@
         const prevStatus = newStatus === 1 ? 0 : 1
 
         try {
-            const api = getAdminApi()
-            await api.updateUnitStatus(String(id), newStatus)
+            await updateUnitStatus(String(id), newStatus)
             ElMessage.success('设置成功')
         } catch {
             if (row) {

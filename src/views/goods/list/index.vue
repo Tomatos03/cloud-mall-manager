@@ -1,11 +1,12 @@
 <template>
     <div class="h-full flex flex-col p-6 bg-[#f4f7fe]">
-        <!-- 顶部操作区域 -->
-        <div class="flex justify-between items-center mb-4">
-            <!-- 只有商家用户才能添加商品 -->
-            <el-button v-if="userStore.isMerchant" type="primary" class="add-btn" @click="onAdd">
-                <el-icon class="mr-1"><Plus /></el-icon>
-                添加商品
+        <div class="mb-4">
+            <el-button
+                v-auth="GOODS_PERMISSIONS.ADD"
+                type="primary"
+                @click="onAdd"
+            >
+                新增商品
             </el-button>
         </div>
 
@@ -15,9 +16,9 @@
                 <template #mainImg="{ row }">
                     <div class="flex items-center justify-center">
                         <el-image
-                            v-if="row.mainImg"
-                            :src="row.mainImg"
-                            :preview-src-list="[row.mainImg]"
+                            v-if="row.displayImageUrls && row.displayImageUrls.length > 0"
+                            :src="row.displayImageUrls[0]"
+                            :preview-src-list="row.displayImageUrls"
                             preview-teleported
                             class="w-12 h-12 rounded-lg shadow-sm border border-gray-50"
                             fit="cover"
@@ -40,7 +41,7 @@
 
                 <template #price="{ row }">
                     <span class="text-red-500 font-semibold">{{
-                        formatPrice(row.minPriceStr, row.maxPriceStr)
+                        formatPrice(row.minPrice, row.maxPrice)
                     }}</span>
                 </template>
 
@@ -58,15 +59,6 @@
                     <span v-else class="text-gray-300">-</span>
                 </template>
 
-                <template #status="{ row }">
-                    <el-switch
-                        :model-value="statusOf(row)"
-                        :loading="row.__publishing"
-                        @change="onTogglePublished(row, $event)"
-                        style="--el-switch-on-color: #3b82f6"
-                    />
-                </template>
-
                 <template #sellPoint="{ row }">
                     <el-tooltip v-if="row.sellPoint" :content="row.sellPoint" placement="top">
                         <div class="text-gray-400 text-xs truncate">{{ row.sellPoint }}</div>
@@ -75,25 +67,33 @@
                 </template>
 
                 <template #action="{ row }">
-                    <!-- 管理员仅可以查看 -->
-                    <template v-if="userStore.isAdmin">
-                        <el-button link type="primary" size="small" @click="onView(row)">
-                            查看
-                        </el-button>
-                    </template>
-
-                    <!-- 商家可以查看、编辑和删除 -->
-                    <template v-if="userStore.isMerchant">
-                        <el-button link type="primary" size="small" @click="onView(row)">
-                            查看
-                        </el-button>
-                        <el-button link type="primary" size="small" @click="onEdit(row)">
-                            编辑
-                        </el-button>
-                        <el-button link type="danger" size="small" @click="onDelete(row)">
-                            删除
-                        </el-button>
-                    </template>
+                    <el-button
+                        v-auth="GOODS_PERMISSIONS.VIEW"
+                        link
+                        type="primary"
+                        size="small"
+                        @click="onView(row)"
+                    >
+                        查看
+                    </el-button>
+                    <el-button
+                        v-auth="GOODS_PERMISSIONS.EDIT"
+                        link
+                        type="primary"
+                        size="small"
+                        @click="onEdit(row)"
+                    >
+                        编辑
+                    </el-button>
+                    <el-button
+                        v-auth="GOODS_PERMISSIONS.DELETE"
+                        link
+                        type="danger"
+                        size="small"
+                        @click="onDelete(row)"
+                    >
+                        删除
+                    </el-button>
                 </template>
             </Table>
         </div>
@@ -120,29 +120,25 @@
 
 <script setup lang="ts">
     import { ref, onMounted } from 'vue'
-    import { useRouter } from 'vue-router'
-    import { Plus, Picture } from '@element-plus/icons-vue'
+    import { Picture } from '@element-plus/icons-vue'
+    import { ElMessage, ElMessageBox } from 'element-plus'
     import Table from '@/components/table/Table.vue'
     import GoodsDetailDialog from './model/GoodsDetailDialog.vue'
-    import { getApi, getMerchantApi } from '@/api/client'
+    import { fetchGoodsPage, getGoodsSpecsAndSkus } from '@/api/goods'
     import { useCategoryStore } from '@/stores/category'
-    import { useUserStore } from '@/stores/user'
-    import { ElMessage, ElMessageBox } from 'element-plus'
-    import type { GoodsDetail, GoodsListItem } from '@/api/common'
-    import { formatPrice } from '@/utils/price'
+    import { GOODS_PERMISSIONS } from '@/constants/permissions'
+    import type { GoodsDetail, GoodsListItem } from '@/api/goods'
+    import { formatPrice } from '@/utils/money'
 
-    const userStore = useUserStore()
     const categoryStore = useCategoryStore()
-    const router = useRouter()
 
     const columns = [
         { id: '1', label: '商品图片', key: 'mainImg', width: 100 },
-        { id: '2', label: '商品名称', key: 'goodsName', minWidth: 200 },
+        { id: '2', label: '商品名称', key: 'goodsName', minWidth: 150 },
         { id: '3', label: '价格', key: 'price', width: 150 },
         { id: '4', label: '单位', key: 'unitName', width: 80 },
         { id: '5', label: '所属分类', key: 'category', width: 150 },
-        { id: '6', label: '是否上架', key: 'status', width: 100 },
-        { id: '7', label: '商品卖点', key: 'sellPoint', minWidth: 250 },
+        { id: '7', label: '商品卖点', key: 'sellPoint', minWidth: 180 },
     ]
 
     const data = ref<GoodsListItem[]>([])
@@ -156,7 +152,7 @@
     const loadData = async () => {
         loading.value = true
         try {
-            const res = await getApi().fetchGoodsPage({
+            const res = await fetchGoodsPage({
                 page: page.value,
                 pageSize: pageSize.value,
             })
@@ -188,7 +184,7 @@
         currentGoods.value = row as GoodsDetail
 
         detailVisible.value = true
-        const res = await getMerchantApi().getGoodsSpecsAndSkus(row.goodsId)
+        const res = await getGoodsSpecsAndSkus(row.goodsId)
         currentGoods.value = {
             ...currentGoods.value,
             ...res.data,
@@ -197,56 +193,37 @@
     }
 
     const onAdd = () => {
-        router.push('/goods/publish')
+        ElMessage.info('新增商品功能开发中...')
     }
 
-    const onEdit = (row: GoodsListItem) => {
-        router.push({ path: '/goods/publish', query: { id: row.goodsId } })
+    const onEdit = async (row: GoodsListItem) => {
+        ElMessage.info('编辑商品功能开发中...')
     }
 
-    const onDelete = (row: GoodsListItem) => {
-        ElMessageBox.confirm('确定要删除该商品吗？', '提示', {
-            type: 'warning',
-            confirmButtonClass: 'el-button--danger',
-        }).then(async () => {
-            await getMerchantApi().deleteGoods(row.goodsId)
-            ElMessage.success('删除成功')
-            loadData()
-        })
-    }
-
-    const statusOf = (row: GoodsListItem) => {
-        return !!row.status
-    }
-
-    const onTogglePublished = async (
-        row: GoodsListItem & { __publishing?: boolean },
-        val: boolean,
-    ) => {
-        row.__publishing = true
+    const onDelete = async (row: GoodsListItem) => {
         try {
-            await getMerchantApi().updateGoodsStatus(row.goodsId, val)
-            row.status = val
-            ElMessage.success(val ? '已上架' : '已下架')
-        } finally {
-            row.__publishing = false
+            await ElMessageBox.confirm(`确定要删除商品 "${row.goodsName}" 吗？`, '删除确认', {
+                confirmButtonText: '确定',
+                cancelButtonText: '取消',
+                type: 'warning',
+            })
+
+            await deleteGoods(row.goodsId)
+            ElMessage.success('商品删除成功')
+            loadData()
+        } catch (error) {
+            if (error !== 'cancel') {
+                ElMessage.error('删除失败')
+            }
         }
     }
 
     onMounted(async () => {
-        await categoryStore.loadCategoryList()
-        loadData()
+        Promise.all([categoryStore.loadCategoryList(), loadData()])
     })
 </script>
 
 <style scoped>
-    .add-btn {
-        border-radius: 8px;
-        padding: 10px 20px;
-        font-weight: 600;
-        box-shadow: 0 4px 12px -2px rgba(59, 130, 246, 0.3);
-    }
-
     .custom-pagination :deep(.el-pagination__total),
     .custom-pagination :deep(.el-pagination__jump) {
         color: #64748b;

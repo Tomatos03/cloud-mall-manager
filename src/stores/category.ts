@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { getCategoryList, type CategoryItem } from '@/api/merchant/category'
-import { getCategoryTree } from '@/api/common/category'
+import { getCategoryList, type CategoryItem } from '@/api/category'
+import { getCategoryTree } from '@/api/category'
 
 export const useCategoryStore = defineStore('category', () => {
     const loading = ref(false)
@@ -141,6 +141,17 @@ export const useCategoryStore = defineStore('category', () => {
         return getCategoryName(String(categoryIdPath[0]))
     }
 
+    /**
+     * 清空分类缓存
+     */
+    const clear = () => {
+        _categoryList.value = []
+        _categoryTree.value = []
+        _listLoaded.value = false
+        _treeLoaded.value = false
+        loading.value = false
+    }
+
     return {
         categoryList,
         categoryTree,
@@ -152,5 +163,6 @@ export const useCategoryStore = defineStore('category', () => {
         getCategoryPathString,
         getCategoryPathStringByIdPath,
         getFirstLevelCategoryName,
+        clear,
     }
 })

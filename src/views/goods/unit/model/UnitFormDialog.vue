@@ -43,7 +43,7 @@
 import { ref, computed, watch } from 'vue'
 import type { FormInstance } from 'element-plus'
 import CapsuleToggle from '@/components/CapsuleToggle.vue'
-import type { UnitItem } from '@/api/admin/unit'
+import type { UnitItem } from '@/api/modules'
 
 const props = withDefaults(
     defineProps<{

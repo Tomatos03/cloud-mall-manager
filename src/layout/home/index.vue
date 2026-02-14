@@ -7,11 +7,13 @@
         >
             <!-- Logo 区域 -->
             <div class="flex items-center gap-3 px-6 h-16 mt-2 mb-2">
-                <div class="p-2 rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-100">
+                <div
+                    class="p-2 rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-100 flex items-center justify-center"
+                >
                     <el-icon :size="20"><ShoppingTrolley /></el-icon>
                 </div>
-                <h1 class="text-lg font-black tracking-tight text-gray-800 uppercase">
-                    Online Shop
+                <h1 class="text-lg font-black tracking-tight text-gray-800">
+                    {{ appTitle }}
                 </h1>
             </div>
 
@@ -24,73 +26,46 @@
                     router
                     @select="handleMenuSelect"
                 >
-                    <template v-for="menu in resolvedMenus" :key="menu.path">
+                    <template v-for="menu in resolvedMenus" :key="getMenuKey(menu)">
                         <!-- 无子菜单 -->
                         <el-menu-item
                             v-if="!menu.children || menu.children.length === 0"
-                            :index="menu.path"
+                            :index="getMenuPath(menu)"
                             class="menu-item-custom"
                         >
-                            <el-icon v-if="menu.meta?.icon" class="menu-icon">
+                            <el-icon v-if="menu.meta.icon" class="menu-icon">
                                 <component :is="menu.meta.icon" />
                             </el-icon>
                             <template #title>
-                                <span class="font-semibold">{{
-                                    menu.meta?.title || menu.name
-                                }}</span>
+                                <span class="font-semibold">{{ menu.meta.label }}</span>
                             </template>
                         </el-menu-item>
 
                         <!-- 有子菜单 -->
-                        <el-sub-menu v-else :index="menu.path" class="submenu-custom">
+                        <el-sub-menu v-else :index="getMenuPath(menu)" class="submenu-custom">
                             <template #title>
-                                <el-icon v-if="menu.meta?.icon" class="menu-icon">
+                                <el-icon v-if="menu.meta.icon" class="menu-icon">
                                     <component :is="menu.meta.icon" />
                                 </el-icon>
-                                <span class="font-semibold">{{
-                                    menu.meta?.title || menu.name
-                                }}</span>
+                                <span class="font-semibold">{{ menu.meta.label }}</span>
                             </template>
                             <el-menu-item
                                 v-for="child in menu.children"
-                                :key="child.path"
-                                :index="child.path"
+                                :key="getMenuKey(child)"
+                                :index="getMenuPath(child)"
                                 class="child-menu-item-custom"
                             >
-                                <el-icon v-if="child.meta?.icon" :size="14">
+                                <el-icon v-if="child.meta.icon" :size="14">
                                     <component :is="child.meta.icon" />
                                 </el-icon>
                                 <template #title>
-                                    <span class="text-[13px]">{{
-                                        child.meta?.title || child.name
-                                    }}</span>
+                                    <span class="text-[13px]">{{ child.meta.label }}</span>
                                 </template>
                             </el-menu-item>
                         </el-sub-menu>
                     </template>
                 </el-menu>
             </el-scrollbar>
-
-            <!-- 侧边栏底部用户信息 -->
-            <div class="p-4 border-t border-gray-50/50">
-                <div
-                    class="bg-gray-50/80 rounded-2xl p-3 flex items-center gap-3 cursor-pointer hover:bg-blue-50/50 transition-all duration-300"
-                >
-                    <el-avatar
-                        :src="userAvatarUrl"
-                        :size="32"
-                        class="ring-2 ring-white shadow-sm"
-                    />
-                    <div class="overflow-hidden">
-                        <div class="text-[13px] font-bold text-gray-700 truncate">
-                            {{ userDisplayName }}
-                        </div>
-                        <div class="text-[10px] text-gray-400 truncate tracking-wider">
-                            {{ userRoleText }}
-                        </div>
-                    </div>
-                </div>
-            </div>
         </el-aside>
 
         <!-- 主体区域 -->
@@ -99,12 +74,29 @@
                 <Header class="w-full" />
             </el-header>
 
+            <!-- 动态标签页 -->
+            <el-tabs
+                v-model="tabsStore.activeTabName"
+                type="card"
+                @tab-change="handleTabChange"
+                @tab-remove="handleTabRemove"
+                class="dynamic-tabs"
+            >
+                <el-tab-pane
+                    v-for="tab in tabsStore.tabs"
+                    :key="tab.name"
+                    :name="tab.name"
+                    :label="tab.title"
+                    :closable="tabsStore.isTabClosable(tab.name)"
+                />
+            </el-tabs>
+
             <el-main class="flex-1 p-0! overflow-hidden relative">
                 <router-view v-slot="{ Component }">
                     <transition name="fade-transform" mode="out-in">
-                         <keep-alive>
+                        <keep-alive>
                             <component :is="Component" :key="route.fullPath" />
-                         </keep-alive>
+                        </keep-alive>
                     </transition>
                 </router-view>
             </el-main>
@@ -114,121 +106,245 @@
 
 <script setup lang="ts">
     import { useRoute, useRouter } from 'vue-router'
-    import Header from './model/Header.vue'
-    import { computed } from 'vue'
-    import { usePermissionStore } from '@/stores/permission'
-    import { useUserStore } from '@/stores/user'
+    import Header from './modules/Header.vue'
+    import { computed, watch, onMounted } from 'vue'
+    import { useMenuStore } from '@/stores/menu'
+    import { useTabsStore } from '@/stores/tabs'
     import { ShoppingTrolley } from '@element-plus/icons-vue'
-    import type { MenuItem } from '@/api/common'
+    import type { MenuNode } from '@/api/menu'
 
+    interface ProcessedMenu extends MenuNode {
+        _fullPath?: string
+    }
+
+    const appTitle = import.meta.env.VITE_APP_TITLE
     const route = useRoute()
     const router = useRouter()
-    const permissionStore = usePermissionStore()
-    const userStore = useUserStore()
-    const loading = false;
+    const menuStore = useMenuStore()
+    const tabsStore = useTabsStore()
+    const loading = false
 
-    const DEFAULT_AVATAR = 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'
+    /**
+     * 获取菜单的完整路径
+     */
+    const getMenuPath = (menu: ProcessedMenu): string => {
+        return menu._fullPath || menu.meta.path || '/'
+    }
+
+    /**
+     * 获取菜单的唯一key
+     */
+    const getMenuKey = (menu: MenuNode): string => {
+        return menu.id || menu.meta.name
+    }
 
     /**
      * 计算当前活跃菜单项
-     * 优先使用 meta.activeMenu，否则使用当前路由路径
      */
     const activeMenu = computed(() => {
-        const { path } = route
-        // 检查当前路径是否在菜单列表中
-        const hasPath = (menus: MenuItem[]): boolean => {
-            return menus.some((menu) => {
-                if (menu.path === path) return true
-                if (menu.children) return hasPath(menu.children)
-                return false
-            })
+        const currentPath = route.path
+
+        const findMatchingMenuPath = (menus: ProcessedMenu[]): string | null => {
+            for (const menu of menus) {
+                if (getMenuPath(menu) === currentPath) {
+                    return getMenuPath(menu)
+                }
+
+                if (menu.children?.length) {
+                    const found = findMatchingMenuPath(menu.children as ProcessedMenu[])
+                    if (found) return found
+                }
+            }
+            return null
         }
 
-        // 如果当前是基础路径且不在菜单中，默认指向第一个菜单项
-        if (!hasPath(resolvedMenus.value)) {
-            const first = resolvedMenus.value[0]
-            if (first == undefined) return null
-            return first.children && first.children.length > 0
-                ? first.children[0]?.path
-                : first.path
+        const matched = findMatchingMenuPath(resolvedMenus.value)
+        if (matched) {
+            return matched
         }
 
-        return path
-    })
+        // 默认激活第一个菜单
+        const firstMenu = resolvedMenus.value[0]
+        if (!firstMenu) return null
 
-    // 用户信息计算属性
-    const userDisplayName = computed(() => userStore.displayName || userStore.username || '用户')
-
-    const userAvatarUrl = computed(() => {
-        const avatar = userStore.avatarUrl
-        return avatar && avatar.trim() !== '' ? avatar : DEFAULT_AVATAR
-    })
-
-    const userRoleText = computed(() => {
-        const role = userStore.role
-        if (role === 'ADMIN') return 'ADMINISTRATOR'
-        if (role === 'MERCHANT') return 'MERCHANT'
-        return 'NORMAL USER'
-    })
-
-    const handleMenuSelect = (path: string) => {
-      if (!loading) {
-        router.push(path)
-      }
-    }
-
-    /**
-     * 规范化路径拼接函数
-     */
-    const resolvePath = (basePath: string, routePath: string) => {
-        if (routePath.startsWith('/')) return routePath
-        const base = basePath.endsWith('/') ? basePath : basePath + '/'
-        return (base + routePath.replace(/^\//, '')).replace(/\/+/g, '/')
-    }
-
-    /**
-     * 递归处理菜单项的路径，支持多层嵌套
-     */
-    const processMenuItemPath = (item: MenuItem, basePath: string): MenuItem => {
-        const fullPath = resolvePath(basePath, item.routePath)
-        const processed = { ...item, routePath: fullPath }
-
-        // 递归处理子菜单
-        if (item.children && item.children.length > 0) {
-            processed.children = item.children.map((child) =>
-                processMenuItemPath(child, fullPath)
+        if (firstMenu.children?.length) {
+            return (
+                getMenuPath(firstMenu.children[0] as ProcessedMenu) ||
+                getMenuPath(firstMenu) ||
+                null
             )
+        }
+        return getMenuPath(firstMenu) || null
+    })
+
+    /**
+     * 处理菜单选择 - 点击菜单项时触发
+     */
+    const handleMenuSelect = (path: string) => {
+        if (!loading) {
+            router.push(path)
+        }
+    }
+
+    /**
+     * 处理标签页切换
+     */
+    const handleTabChange = (tabName: string) => {
+        const tab = tabsStore.tabs.find((t) => t.name === tabName)
+        if (tab) {
+            router.push(tab.path)
+        }
+    }
+
+    /**
+     * 处理标签页关闭
+     */
+    const handleTabRemove = (tabName: string) => {
+        // 检查标签页是否可删除
+        if (!tabsStore.isTabClosable(tabName)) {
+            return
+        }
+
+        tabsStore.removeTab(tabName)
+
+        // 如果有剩余标签，导航到当前活跃标签
+        if (tabsStore.tabs.length > 0) {
+            const activeTab = tabsStore.tabs.find((t) => t.name === tabsStore.activeTabName)
+            if (activeTab) {
+                router.push(activeTab.path)
+            }
+        }
+    }
+
+    /**
+     * 路径解析函数 - 类似于 Vue Router 的路径处理
+     */
+    const resolvePath = (parentPath: string = '/', childPath: string = ''): string => {
+        // 子路径为空，返回父路径
+        if (!childPath || childPath.trim() === '') {
+            return parentPath
+        }
+
+        // 子路径是绝对路径（以 / 开头），直接返回
+        if (childPath.startsWith('/')) {
+            return childPath
+        }
+
+        // 子路径是相对路径，基于父路径进行拼接
+        const normalizedParent = parentPath.endsWith('/') ? parentPath.slice(0, -1) : parentPath
+        const normalizedChild = childPath.startsWith('/') ? childPath : '/' + childPath
+        return (normalizedParent + normalizedChild).replace(/\/+/g, '/') || '/'
+    }
+
+    /**
+     * 递归处理菜单项的路径
+     * 计算每个菜单项的完整路由路径
+     */
+    const processMenuItemPath = (item: MenuNode, parentPath: string = '/'): ProcessedMenu => {
+        const fullRoutePath = resolvePath(parentPath, item.meta.path)
+
+        const processed: ProcessedMenu = {
+            ...item,
+            _fullPath: fullRoutePath,
+        }
+
+        if (item.children?.length) {
+            processed.children = item.children.map((child) =>
+                processMenuItemPath(child, fullRoutePath),
+            ) as ProcessedMenu[]
         }
 
         return processed
     }
 
     /**
-     * 处理菜单数据
-     * 1. 处理 Layout 提升逻辑：如果顶级菜单是 Layout，则将其子菜单提升到顶层显示
-     * 2. 确保所有菜单项的 path 都是完整的绝对路径，以便与 route.path 匹配
+     * 递归展开 Layout 类型的菜单
+     * Layout 是一个特殊的菜单类型，用于逻辑分组
+     */
+    const flattenLayoutMenus = (item: MenuNode, parentPath: string = '/'): ProcessedMenu[] => {
+        // Layout 类型且有子菜单，递归展开
+        if (item.type === 'layout' && item.children?.length) {
+            const layoutPath = resolvePath(parentPath, item.meta.path)
+            return item.children.flatMap((child) => flattenLayoutMenus(child, layoutPath))
+        }
+
+        // 非 Layout 类型或没有子菜单，直接处理路径并返回
+        return [processMenuItemPath(item, parentPath)]
+    }
+
+    /**
+     * 计算最终的菜单数据
      */
     const resolvedMenus = computed(() => {
-        const rawMenus = permissionStore.menus || []
-        const result: MenuItem[] = []
-
-        rawMenus.forEach((item: MenuItem) => {
-            if (item.type === 'layout' && item.children && item.children.length > 0) {
-                item.children.forEach((child: MenuItem) => {
-                    result.push(processMenuItemPath(child, item.routePath))
-                })
-            } else {
-                // 非 Layout 类型的顶级菜单项
-                result.push(processMenuItemPath(item, ''))
-            }
-        })
-        console.log(result);
-        return result
+        const root = menuStore.rootNode
+        if (!root) return []
+        return flattenLayoutMenus(root, '/')
     })
+
+    /**
+     * 获取当前路由对应的菜单标题
+     */
+    const getCurrentRouteTitle = (): string => {
+        const currentPath = route.path
+
+        const findMenuTitle = (menus: ProcessedMenu[]): string | null => {
+            for (const menu of menus) {
+                if (getMenuPath(menu) === currentPath) {
+                    return menu.meta.label || '新标签页'
+                }
+
+                if (menu.children?.length) {
+                    const found = findMenuTitle(menu.children as ProcessedMenu[])
+                    if (found) return found
+                }
+            }
+            return null
+        }
+
+        return findMenuTitle(resolvedMenus.value) || '新标签页'
+    }
+
+    /**
+     * 组件挂载时恢复 tab 状态
+     */
+    onMounted(() => {
+        tabsStore.restoreFromStorage()
+
+        // 如果有保存的 tab，导航到活跃的 tab
+        if (tabsStore.tabs.length > 0 && tabsStore.activeTabName) {
+            const activeTab = tabsStore.tabs.find((t) => t.name === tabsStore.activeTabName)
+            if (activeTab && route.path !== activeTab.path) {
+                router.push(activeTab.path)
+            }
+        } else if (route.path !== '/login' && route.path !== '/404') {
+            // 如果没有保存的 tab 或当前路由不在 tabs 中，添加当前路由
+            const title = getCurrentRouteTitle()
+            tabsStore.addTab(route.path, title)
+        }
+    })
+
+    /**
+     * 监听路由变化，动态添加标签页
+     */
+    watch(
+        () => route.path,
+        (newPath) => {
+            // 跳过登录页和404页
+            if (newPath === '/login' || newPath === '/404') {
+                return
+            }
+
+            // 获取当前路由的标题
+            const title = getCurrentRouteTitle()
+
+            // 添加标签页
+            tabsStore.addTab(newPath, title)
+        },
+        { immediate: false },
+    )
 </script>
 
 <style scoped>
-    /* 彻底移除 Element Plus 菜单默认右边框 */
     .sidebar-menu,
     :deep(.el-menu),
     :deep(.el-aside) {
@@ -279,6 +395,92 @@
         margin-right: 12px;
         font-size: 18px;
         transition: transform 0.3s ease;
+    }
+
+    /* 动态标签页 - 现代极简风格 (高对比 + 指示点) */
+    :deep(.dynamic-tabs) {
+        margin: 0 !important;
+        padding: 12px 20px 2px !important;
+        background: transparent !important;
+    }
+
+    :deep(.dynamic-tabs .el-tabs__header) {
+        margin: 0 !important;
+        border: none !important;
+    }
+
+    :deep(.dynamic-tabs .el-tabs__nav-wrap:after) {
+        display: none !important;
+    }
+
+    :deep(.dynamic-tabs .el-tabs__nav) {
+        border: none !important;
+        display: flex !important;
+        gap: 8px !important;
+    }
+
+    :deep(.dynamic-tabs .el-tabs__item) {
+        height: 30px !important;
+        line-height: 32px !important;
+        padding: 0 16px !important;
+        color: #64748b !important;
+        background-color: #e9effd !important;
+        border: 1px solid #dce4f5 !important;
+        border-radius: 6px !important;
+        font-size: 13px !important;
+        font-weight: 500 !important;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        margin: 0 !important;
+        position: relative !important;
+    }
+
+    :deep(.dynamic-tabs .el-tabs__item:hover) {
+        color: #3b82f6 !important;
+        background-color: #f0f4ff !important;
+        border-color: #cbd5e1 !important;
+    }
+
+    :deep(.dynamic-tabs .el-tabs__item.is-active) {
+        color: #3b82f6 !important;
+        background-color: #ffffff !important;
+        font-weight: 700 !important;
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.12) !important;
+        padding-left: 20px !important;
+    }
+
+    /* 活跃状态的左侧指示点 - 颜色加深 */
+    :deep(.dynamic-tabs .el-tabs__item.is-active::before) {
+        content: '';
+        position: absolute;
+        left: 8px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 5px;
+        height: 5px;
+        background-color: #3b82f6;
+        border-radius: 50%;
+    }
+
+    :deep(.dynamic-tabs .el-tabs__item .is-icon-close) {
+        width: 14px !important;
+        height: 14px !important;
+        font-size: 10px !important;
+        margin-left: 8px !important;
+        border-radius: 4px !important;
+        transition: all 0.2s !important;
+    }
+
+    :deep(.dynamic-tabs .el-tabs__item.is-active .is-icon-close) {
+        color: #94a3b8 !important;
+    }
+
+    :deep(.dynamic-tabs .el-tabs__item .is-icon-close:hover) {
+        background-color: #fee2e2 !important;
+        color: #ef4444 !important;
+    }
+
+    :deep(.dynamic-tabs .el-tabs__content) {
+        display: none !important;
     }
 
     /* 优化后的过渡动画 - 更丝滑的贝塞尔曲线和位移 */

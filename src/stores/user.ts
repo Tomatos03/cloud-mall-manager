@@ -1,5 +1,4 @@
 import { defineStore } from 'pinia'
-import { resetApiClient } from '@/api/client'
 
 // 用户状态类型定义，规定了用户状态包含哪些字段及类型
 
@@ -7,42 +6,37 @@ export interface UserState {
     uid: string // 用户ID
     username: string // 用户名
     nickname: string // 用户昵称
-    role: string // 用户角色
     token: string // 登录令牌
     avatarUrl?: string // 用户头像URL
     phone?: string // 手机号
     email?: string // 电子邮箱
-    storeId?: string // 店铺ID（商家用户）
-    storeName?: string // 店铺名称（商家用户）
+    resourceCodes: string[] // 权限资源代码列表
 }
 
 /**
  * 用户状态管理 Store
  * - 用于集中管理用户相关的状态数据
  * - 支持持久化，自动同步到 localStorage
+ * - 包含权限资源代码管理
  */
 export const useUserStore = defineStore('user', {
     state: (): UserState => ({
         uid: '',
         username: '',
         nickname: '',
-        role: '',
         token: '',
         avatarUrl: '',
         phone: '',
         email: '',
-        storeId: '',
-        storeName: '',
+        resourceCodes: [],
     }),
     getters: {
-        isAdmin: (state) => state.role === 'ADMIN',
-        isMerchant: (state) => state.role === 'MERCHANT',
-        // 获取显示名称，优先使用昵称，其次使用用户名
         displayName: (state) => state.nickname || state.username,
+        tokenGetter: (state) => state.token,
     },
     actions: {
         setToken(token: string) {
-          this.token = token
+            this.token = token
         },
         /**
          * 批量设置用户信息
@@ -50,6 +44,15 @@ export const useUserStore = defineStore('user', {
          */
         setUser(user: Partial<UserState>) {
             Object.assign(this, user)
+        },
+
+        /**
+         * 设置权限资源代码
+         * 【重要】登录后必须调用此方法来初始化权限
+         * @param resourceCodes 权限资源代码数组
+         */
+        setResourceCodes(resourceCodes: string[]) {
+            this.resourceCodes = resourceCodes
         },
 
         /**
@@ -69,7 +72,6 @@ export const useUserStore = defineStore('user', {
         clearUser() {
             // 使用 $reset() 方法彻底重置所有用户状态，确保完全清理持久化数据
             this.$reset()
-            resetApiClient()
         },
     },
     // persist 配置用于状态持久化（依赖 pinia-plugin-persistedstate 插件）
