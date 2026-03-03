@@ -1,19 +1,28 @@
-/**
- * 审核业务渲染器注册表
- */
-
 import GoodsDetail from './GoodsDetail.vue'
+import StoreQualificationDetail from './StoreQualificationDetail.vue'
 import type { AuditRenderer } from '../../types'
 
 /**
  * 商品审核渲染器
  */
 const goodsRenderer: AuditRenderer = {
-    parseExtraInfo(extraInfo: string) {
-        return JSON.parse(extraInfo)
+    parseExtraInfo(snapshot: string) {
+        return JSON.parse(snapshot)
     },
     getDetailComponent() {
         return GoodsDetail
+    },
+}
+
+/**
+ * 商家入驻资格审核渲染器
+ */
+const storeQualificationRenderer: AuditRenderer = {
+    parseExtraInfo(snapshot: string) {
+        return JSON.parse(snapshot)
+    },
+    getDetailComponent() {
+        return StoreQualificationDetail
     },
 }
 
@@ -22,8 +31,7 @@ const goodsRenderer: AuditRenderer = {
  */
 export const auditRendererMap: Record<string, AuditRenderer> = {
     GOODS: goodsRenderer,
-    // 后续可以添加其他业务类型的渲染器
-    // ORDER: orderRenderer,
+    STORE_REGISTER: storeQualificationRenderer,
 }
 
 /**

@@ -1,7 +1,7 @@
 <template>
     <el-dialog
         v-model="visible"
-        title="拒绝审核申请"
+        :title="dialogTitle"
         width="550px"
         append-to-body
         class="audit-dialog"
@@ -10,30 +10,37 @@
         <!-- 申请信息卡片 -->
         <div class="mb-6 p-4 bg-gray-50 rounded-lg">
             <div class="flex items-start gap-4 mb-4">
+                <!-- 仅在有图片时显示 -->
                 <el-image
-                    v-if="form.previewImgUrl"
-                    :src="form.previewImgUrl"
+                    v-if="form.image"
+                    :src="form.image"
                     class="w-16 h-16 rounded shadow-sm shrink-0"
                     fit="cover"
                 />
-                <div
-                    v-else
-                    class="w-16 h-16 rounded shadow-sm shrink-0 bg-gray-200 flex items-center justify-center"
-                >
-                    <span class="text-xs text-gray-400">无图</span>
-                </div>
                 <div class="flex-1 overflow-hidden">
-                    <div class="font-bold text-gray-800 truncate">{{ form.previewName }}</div>
-                    <div class="text-xs text-gray-500 mt-2 line-clamp-2">
-                        {{ form.previewSellPoint || '暂无详细描述' }}
+                    <div class="font-bold text-gray-800 truncate">{{ form.title }}</div>
+                    <div v-if="form.subTitle" class="text-xs text-gray-500 mt-2 line-clamp-2">
+                        {{ form.subTitle }}
                     </div>
                 </div>
             </div>
 
+            <!-- 扩展信息展示项 -->
+            <div v-if="form.extraInfo.length > 0" class="mb-4 space-y-2">
+                <div
+                    v-for="(item, index) in form.extraInfo"
+                    :key="index"
+                    class="flex justify-between text-xs"
+                >
+                    <span class="text-gray-500">{{ item.label }}：</span>
+                    <span class="text-gray-700 font-medium">{{ item.value }}</span>
+                </div>
+            </div>
+
             <!-- 申请人信息 -->
-            <div class="pt-3 border-t border-gray-200">
-                <span class="text-xs text-gray-500">申请人：</span>
-                <span class="text-sm text-gray-700 font-medium">{{ form.previewApplicant }}</span>
+            <div class="pt-3 border-t border-gray-200 flex justify-between items-center">
+                <span class="text-xs text-gray-500">申请人</span>
+                <span class="text-sm text-gray-700 font-medium">{{ form.applicant }}</span>
             </div>
         </div>
 
@@ -67,25 +74,36 @@
 <script setup lang="ts">
     import { ref, reactive, computed } from 'vue'
     import { ElMessage } from 'element-plus'
-    import { submitAudit } from '@/api/audit'
+    import { auditDecision } from '@/api/audit'
+    import { AuditTargetType } from '@/views/audit/types'
+
+    export interface AuditRejectOptions {
+        id: string
+        targetType: AuditTargetType
+        title: string
+        applicant: string
+        image?: string
+        subTitle?: string
+        extraInfo?: Array<{ label: string; value: string }>
+        dialogTitle?: string
+    }
 
     export interface AuditRejectDialogExposed {
-        setData: (
-            auditId: string,
-            name: string,
-            mainImgUrl: string,
-            applicantName: string,
-            sellPoint?: string,
-        ) => void
+        /**
+         * 打开并初始化拒绝审核对话框
+         */
+        open: (options: AuditRejectOptions) => void
     }
 
     interface AuditRejectForm {
         id: string
+        targetType?: AuditTargetType
         msg: string
-        previewName: string
-        previewImgUrl: string
-        previewApplicant: string
-        previewSellPoint: string
+        title: string
+        image: string
+        applicant: string
+        subTitle: string
+        extraInfo: Array<{ label: string; value: string }>
     }
 
     const props = defineProps<{
@@ -98,14 +116,17 @@
     }>()
 
     const submitting = ref(false)
+    const dialogTitle = ref('拒绝审核申请')
 
     const form = reactive<AuditRejectForm>({
         id: '',
+        targetType: undefined,
         msg: '',
-        previewName: '',
-        previewImgUrl: '',
-        previewApplicant: '',
-        previewSellPoint: '',
+        title: '',
+        image: '',
+        applicant: '',
+        subTitle: '',
+        extraInfo: [],
     })
 
     const visible = computed({
@@ -116,10 +137,12 @@
     const resetForm = () => {
         form.id = ''
         form.msg = ''
-        form.previewName = ''
-        form.previewImgUrl = ''
-        form.previewApplicant = ''
-        form.previewSellPoint = ''
+        form.title = ''
+        form.image = ''
+        form.applicant = ''
+        form.subTitle = ''
+        form.extraInfo = []
+        dialogTitle.value = '拒绝审核申请'
     }
 
     const handleSubmit = async () => {
@@ -128,9 +151,19 @@
             return
         }
 
+        if (!form.targetType) {
+            ElMessage.error('业务类型丢失，请重试')
+            return
+        }
+
         submitting.value = true
         try {
-            await submitAudit(form.id, false, form.msg)
+            await auditDecision({
+                auditId: form.id,
+                targetType: form.targetType,
+                approved: false,
+                reason: form.msg,
+            })
             ElMessage.success('审核操作已提交')
             visible.value = false
             emit('success')
@@ -139,22 +172,21 @@
         }
     }
 
+    const open = (options: AuditRejectOptions) => {
+        form.id = options.id
+        form.targetType = options.targetType
+        form.title = options.title
+        form.image = options.image || ''
+        form.applicant = options.applicant
+        form.subTitle = options.subTitle || ''
+        form.extraInfo = options.extraInfo || []
+        dialogTitle.value = options.dialogTitle || '拒绝审核申请'
+        visible.value = true
+    }
+
     // 暴露方法供父组件调用
     defineExpose({
-        setData: (
-            id: string,
-            name: string,
-            imgUrl: string,
-            applicantName: string,
-            sellPoint: string = '',
-        ) => {
-            form.id = id
-            form.previewName = name
-            form.previewImgUrl = imgUrl
-            form.previewApplicant = applicantName
-            form.previewSellPoint = sellPoint
-            visible.value = true
-        },
+        open,
     })
 </script>
 

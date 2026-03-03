@@ -1,15 +1,5 @@
 <template>
     <div class="h-full flex flex-col p-6 bg-[#f4f7fe]">
-        <div class="mb-4">
-            <el-button
-                v-auth="GOODS_PERMISSIONS.ADD"
-                type="primary"
-                @click="onAdd"
-            >
-                新增商品
-            </el-button>
-        </div>
-
         <!-- 表格区域 -->
         <div class="flex-1 overflow-hidden">
             <Table :columns="columns" :data="data" height="100%" :showId="false">
@@ -76,24 +66,6 @@
                     >
                         查看
                     </el-button>
-                    <el-button
-                        v-auth="GOODS_PERMISSIONS.EDIT"
-                        link
-                        type="primary"
-                        size="small"
-                        @click="onEdit(row)"
-                    >
-                        编辑
-                    </el-button>
-                    <el-button
-                        v-auth="GOODS_PERMISSIONS.DELETE"
-                        link
-                        type="danger"
-                        size="small"
-                        @click="onDelete(row)"
-                    >
-                        删除
-                    </el-button>
                 </template>
             </Table>
         </div>
@@ -121,9 +93,8 @@
 <script setup lang="ts">
     import { ref, onMounted } from 'vue'
     import { Picture } from '@element-plus/icons-vue'
-    import { ElMessage, ElMessageBox } from 'element-plus'
     import Table from '@/components/table/Table.vue'
-    import GoodsDetailDialog from './model/GoodsDetailDialog.vue'
+    import GoodsDetailDialog from './modules/GoodsDetailDialog.vue'
     import { fetchGoodsPage, getGoodsSpecsAndSkus } from '@/api/goods'
     import { useCategoryStore } from '@/stores/category'
     import { GOODS_PERMISSIONS } from '@/constants/permissions'
@@ -189,32 +160,6 @@
             ...currentGoods.value,
             ...res.data,
             categoryPath: categoryPathStr,
-        }
-    }
-
-    const onAdd = () => {
-        ElMessage.info('新增商品功能开发中...')
-    }
-
-    const onEdit = async (row: GoodsListItem) => {
-        ElMessage.info('编辑商品功能开发中...')
-    }
-
-    const onDelete = async (row: GoodsListItem) => {
-        try {
-            await ElMessageBox.confirm(`确定要删除商品 "${row.goodsName}" 吗？`, '删除确认', {
-                confirmButtonText: '确定',
-                cancelButtonText: '取消',
-                type: 'warning',
-            })
-
-            await deleteGoods(row.goodsId)
-            ElMessage.success('商品删除成功')
-            loadData()
-        } catch (error) {
-            if (error !== 'cancel') {
-                ElMessage.error('删除失败')
-            }
         }
     }
 

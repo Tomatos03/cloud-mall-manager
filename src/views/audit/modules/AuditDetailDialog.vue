@@ -28,7 +28,7 @@
         </div>
 
         <!-- 操作按钮 (需要 audit:edit 权限) -->
-        <template v-if="data && [AuditStatus.PENDING, AuditStatus.REAUDIT].includes(data.status)" #footer>
+        <template v-if="data && [AuditStatus.PENDING].includes(data.status)" #footer>
             <div class="flex justify-end gap-2 px-4 py-3">
                 <el-button
                     v-auth="AUDIT_PERMISSIONS.EDIT"
@@ -57,7 +57,8 @@
 <script setup lang="ts">
     import { ref, computed } from 'vue'
     import { ElMessageBox, ElMessage } from 'element-plus'
-    import { submitAudit, AuditStatus } from '@/api/audit'
+    import { auditDecision } from '@/api/audit'
+    import { AuditStatus } from '@/views/audit/types'
     import { AUDIT_PERMISSIONS } from '@/constants/permissions'
     import AuditCommonInfo from './AuditCommonInfo.vue'
     import { getAuditRenderer } from './renderers'
@@ -65,7 +66,7 @@
 
     interface Props {
         modelValue: boolean
-        data: AuditCommonData & { targetType: string; extraInfo: string }
+        data: AuditCommonData
     }
 
     const props = defineProps<Props>()
@@ -90,7 +91,7 @@
         const renderer = getAuditRenderer(props.data.targetType)
         if (!renderer) return null
         try {
-            return renderer.parseExtraInfo(props.data.extraInfo)
+            return renderer.parseExtraInfo(props.data.snapshot)
         } catch {
             return null
         }
@@ -107,7 +108,11 @@
 
         loading.value = true
         try {
-            await submitAudit(props.data.auditId, true)
+            await auditDecision({
+                auditId: props.data.auditId,
+                targetType: props.data.targetType,
+                approved: true,
+            })
             ElMessage.success('审核已通过')
             visible.value = false
             emit('success')

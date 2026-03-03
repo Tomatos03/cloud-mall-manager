@@ -17,7 +17,7 @@
                 >
                     <el-option label="全部状态" :value="undefined" />
                     <el-option
-                        v-for="(config, key) in AuditStatusLabelMap"
+                        v-for="(config, key) in AuditStatusMap"
                         :key="key"
                         :label="config.label"
                         :value="key"
@@ -61,47 +61,36 @@
     import { ref } from 'vue'
     import { RefreshRight } from '@element-plus/icons-vue'
     import {
-        type AuditStatusGroupKey,
         AuditStatus,
-        AuditStatusLabelMap,
+        AuditStatusMap,
         AuditTargetType,
         AuditTargetTypeMap,
-        getStatusesByGroup,
-    } from '@/api/audit'
-
-    type StatusGroup = AuditStatusGroupKey | undefined
-    type FilterTargetType = AuditTargetType | undefined
+    } from '@/views/audit/types'
 
     // 筛选参数对象 - 导出供父组件使用
     export interface FilterParams {
-        status?: AuditStatus[]
+        status?: AuditStatus
         targetType?: AuditTargetType
     }
 
     // 内部维护筛选条件状态
-    const statusGroup = ref<StatusGroup>('PENDING')
-    const targetType = ref<FilterTargetType>(undefined)
+    const statusGroup = ref<AuditStatus | undefined>(undefined)
+    const targetType = ref<AuditTargetType | undefined>(undefined)
 
     const emit = defineEmits<{
         change: [params: FilterParams]
         reset: []
     }>()
 
-    // 构建筛选参数对象
-    const buildFilterParams = (): FilterParams => {
+    const handleChange = () => {
         const params: FilterParams = {}
         if (statusGroup.value) {
-            params.status = getStatusesByGroup(statusGroup.value)
+            params.status = statusGroup.value
         }
         if (targetType.value) {
             params.targetType = targetType.value
         }
-        return params
-    }
-
-    const handleChange = () => {
-        const filterParams = buildFilterParams()
-        emit('change', filterParams)
+        emit('change', params)
     }
 
     const handleReset = () => {

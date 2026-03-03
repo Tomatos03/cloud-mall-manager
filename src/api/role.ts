@@ -13,6 +13,11 @@ export interface Role {
     enable: boolean
 }
 
+export interface RoleLabel {
+  id: string
+  name: string
+}
+
 /**
  * 角色表单数据
  */

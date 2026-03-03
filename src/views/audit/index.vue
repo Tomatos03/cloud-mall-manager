@@ -94,18 +94,19 @@
     import AuditFilter, { type FilterParams } from './modules/AuditFilter.vue'
     import AuditRejectDialog, {
         type AuditRejectDialogExposed,
+        type AuditRejectOptions,
     } from './modules/AuditRejectDialog.vue'
+    import { pageAudit } from '@/api/audit'
     import {
-        pageAudit,
         AuditStatus,
         AuditStatusMap,
         AuditTargetType,
         AuditTargetTypeMap,
-    } from '@/api/audit'
+        type AuditLogVO,
+        type AuditCommonData,
+    } from '@/views/audit/types'
     import { useCategoryStore } from '@/stores/category'
     import { getAuditRenderer } from './modules/renderers'
-    import type { AuditLogVO } from '@/api/audit'
-    import type { AuditCommonData } from './types'
 
     interface AuditListRow {
         auditId: string
@@ -117,7 +118,7 @@
     }
 
     interface AuditDetail extends AuditCommonData {
-        extraInfo: string
+        snapshot: string
     }
 
     // 初始化 store
@@ -170,7 +171,7 @@
                 applicantName: item.applicantName,
                 auditorId: item.auditorId,
                 auditorName: item.auditorName,
-                extraInfo: item.extraInfo,
+                snapshot: item.snapshot,
                 createTime: item.createTime,
                 auditTime: item.auditTime,
             }
@@ -229,14 +230,39 @@
         const renderer = getAuditRenderer(auditData.targetType)
         if (!renderer) return
 
-        const businessData = renderer.parseExtraInfo(auditData.extraInfo)
-        auditRejectDialogRef.value?.setData(
-            row.auditId,
-            businessData.goodsName || '未知',
-            businessData.displayImageUrls?.[0] || '',
-            row.applicantName,
-            businessData.sellPoint,
-        )
+        const businessData = renderer.parseExtraInfo(auditData.snapshot)
+        const options: AuditRejectOptions = {
+            id: row.auditId,
+            targetType: auditData.targetType as AuditTargetType,
+            title:
+                (businessData.goodsName as string) || (businessData.storeName as string) || '未知',
+            applicant: row.applicantName,
+            image:
+                (businessData.displayImageUrls as string[])?.[0] ||
+                (businessData.licensePhoto as string) ||
+                '',
+            subTitle: (businessData.sellPoint as string) || '',
+        }
+
+        // 如果是店铺注册，可以增加额外信息展示
+        if (auditData.targetType === AuditTargetType.STORE_REGISTER) {
+            options.dialogTitle = '拒绝店铺入驻申请'
+            options.extraInfo = [
+                {
+                    label: '店铺类型',
+                    value: businessData.subjectType === 'enterprise' ? '企业' : '个人',
+                },
+                {
+                    label: '证件名称',
+                    value:
+                        (businessData.licenseName as string) ||
+                        (businessData.realName as string) ||
+                        '-',
+                },
+            ]
+        }
+
+        auditRejectDialogRef.value?.open(options)
     }
 
     const handleRejectSuccess = () => {

@@ -11,15 +11,15 @@ export interface UserItem {
     phone?: string
     email?: string
     avatar_url?: string
-    roles?: RoleInfo[]  // RBAC角色列表
+    roles?: RoleInfo[] // RBAC角色列表
     [key: string]: string | number | undefined
 }
 
-// 分页查询返回的用户列表项（最小定义）
+// 分页查询返回的用户列表项
 export interface UserListItem {
     id: string
     username: string
-    roles: RoleInfo[]
+    roleIds: string[] // 角色 ID 列表
 }
 
 // 用户个人资料更新类型
@@ -35,10 +35,8 @@ export interface UserFormData {
     id?: string
     username: string
     password?: string // 编辑时密码可选
-    roles: string[] // 角色 ID 列表
+    roleIds: string[] // 角色 ID 列表
 }
-
-// RBAC 相关类型定义
 
 // 列表中显示的角色信息（最小定义）
 export interface RoleListItem {
@@ -139,21 +137,4 @@ export function updateUserProfile(id: string, data: UserProfileUpdate) {
  */
 export function getUserInfo() {
     return http.get<UserInfo>(`${PREFIX}/info`)
-}
-
-/**
- * 获取用户关联的角色列表
- * @param userId 用户 ID
- */
-export function fetchUserRoles(userId: string) {
-    return http.get<RoleInfo[]>(`${PREFIX}/${userId}/roles`)
-}
-
-/**
- * 为用户分配角色
- * @param userId 用户 ID
- * @param roleIds 角色 ID 列表
- */
-export function assignUserRoles(userId: string, roleIds: string[]) {
-    return http.post(`${PREFIX}/${userId}/roles`, { roleIds })
 }

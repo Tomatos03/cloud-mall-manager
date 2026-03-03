@@ -287,21 +287,25 @@
     const getCurrentRouteTitle = (): string => {
         const currentPath = route.path
 
-        const findMenuTitle = (menus: ProcessedMenu[]): string | null => {
+        const findMenulabel = (menus: ProcessedMenu[]): string | null => {
             for (const menu of menus) {
                 if (getMenuPath(menu) === currentPath) {
-                    return menu.meta.label || '新标签页'
+                    return menu.meta.label
                 }
 
                 if (menu.children?.length) {
-                    const found = findMenuTitle(menu.children as ProcessedMenu[])
+                    const found = findMenulabel(menu.children as ProcessedMenu[])
                     if (found) return found
                 }
             }
             return null
         }
 
-        return findMenuTitle(resolvedMenus.value) || '新标签页'
+        const label = findMenulabel(resolvedMenus.value)
+        if (!label) {
+            throw new Error(`无法找到与路径 ${currentPath} 对应的菜单标题`)
+        }
+        return label
     }
 
     /**

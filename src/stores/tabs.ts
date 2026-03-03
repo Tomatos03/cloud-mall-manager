@@ -83,7 +83,7 @@ export const useTabsStore = defineStore('tabs', () => {
             name,
             path,
             title,
-            closable: !isFirstTab, // 第一个 tab 不可删除
+            closable: !isFirstTab,
         })
 
         // 记录第一个 tab 作为默认 tab

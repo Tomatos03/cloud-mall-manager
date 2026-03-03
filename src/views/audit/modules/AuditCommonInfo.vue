@@ -49,9 +49,7 @@
 
             <!-- 审核执行人 -->
             <div
-                v-if="
-                    data.status === AuditStatus.APPROVED || data.status === AuditStatus.REJECTED
-                "
+                v-if="data.status === AuditStatus.APPROVED || data.status === AuditStatus.REJECTED"
                 class="space-y-1.5 min-w-30"
             >
                 <span class="text-xs text-gray-500 block tracking-wider uppercase font-medium">
@@ -65,7 +63,9 @@
             <!-- 驳回理由 -->
             <div v-if="data.status === AuditStatus.REJECTED" class="w-full">
                 <div class="pt-4 border-t border-gray-50">
-                    <span class="text-xs text-gray-500 block mb-2 tracking-wider uppercase font-medium">
+                    <span
+                        class="text-xs text-gray-500 block mb-2 tracking-wider uppercase font-medium"
+                    >
                         审核驳回意见
                     </span>
                     <div
@@ -75,8 +75,6 @@
                     </div>
                 </div>
             </div>
-
-
 
             <!-- 撤销提示 -->
             <div v-if="data.status === AuditStatus.REVOKED" class="w-full">
@@ -93,7 +91,7 @@
 </template>
 
 <script setup lang="ts">
-    import { AuditStatus, AuditStatusMap } from '@/api/audit'
+    import { AuditStatus, AuditStatusMap } from '@/views/audit/types'
     import type { AuditCommonData } from '../types'
 
     interface Props {
@@ -107,7 +105,6 @@
         [AuditStatus.APPROVED]: 'bg-green-500',
         [AuditStatus.REJECTED]: 'bg-red-500',
         [AuditStatus.REVOKED]: 'bg-gray-400',
-        [AuditStatus.REAUDIT]: 'bg-yellow-500',
     }
 
     function getStatusLabel(status: string): string {

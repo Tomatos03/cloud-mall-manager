@@ -9,24 +9,26 @@
 
         <!-- 表格区域 -->
         <div class="flex-1 overflow-hidden">
-            <Table :columns="columns" :data="data" height="100%" :showId="true">
+            <Table :columns="columns" :data="userList" height="100%" :showId="true">
                 <template #roles="{ row }">
                     <div class="flex flex-wrap gap-1 max-w-xs overflow-hidden">
-                        <el-tag
-                            v-for="role in getUserRoles(row.id)"
-                            :key="role.id"
-                            type="success"
-                            size="small"
-                            :title="role.name"
-                        >
-                            <span class="truncate inline-block max-w-20">{{ role.name }}</span>
-                        </el-tag>
-                        <span v-if="!getUserRoles(row.id).length" class="text-gray-400">
-                            -
-                        </span>
-                        <span v-else-if="isRolesTruncated(row.id)" class="text-gray-500 text-sm leading-7">
-                            ...
-                        </span>
+                        <template v-if="row.roleIds.length === 0">
+                            <span class="text-gray-400"> - </span>
+                        </template>
+                        <template v-else>
+                            <template v-for="roleId in row.roleIds">
+                                <el-tag
+                                    v-if="roleNameMap[roleId]"
+                                    type="success"
+                                    size="small"
+                                    :title="roleNameMap[roleId]"
+                                >
+                                    <span class="truncate inline-block max-w-20">{{
+                                        roleNameMap[roleId]
+                                    }}</span>
+                                </el-tag>
+                            </template>
+                        </template>
                     </div>
                 </template>
                 <template #action="{ row }">
@@ -79,124 +81,32 @@
         </div>
 
         <!-- 添加/编辑用户对话框 -->
-        <el-dialog
+        <UserDialog
             v-model="dialogVisible"
-            :title="isEdit ? '编辑用户' : '添加用户'"
-            width="600px"
-            :close-on-click-modal="false"
-        >
-            <el-form ref="formRef" :model="formData" :rules="rules" label-width="100px">
-                <el-form-item label="用户名" prop="username">
-                    <el-input
-                        v-model="formData.username"
-                        :disabled="isEdit"
-                        placeholder="请输入用户名"
-                        clearable
-                    />
-                </el-form-item>
-                <el-form-item v-if="!isEdit" label="密码" prop="password">
-                    <el-input
-                        v-model="formData.password"
-                        type="password"
-                        placeholder="请输入密码"
-                        clearable
-                        show-password
-                    />
-                </el-form-item>
-                <el-form-item v-if="isEdit" label="角色" prop="roleIds">
-                    <el-select
-                        v-model="formData.roleIds"
-                        multiple
-                        placeholder="请选择角色"
-                        clearable
-                    >
-                        <el-option
-                            v-for="role in allRoles"
-                            :key="role.id"
-                            :label="role.name"
-                            :value="role.id"
-                        />
-                    </el-select>
-                </el-form-item>
-            </el-form>
-
-            <template #footer>
-                <div class="text-right">
-                    <el-button @click="dialogVisible = false">取消</el-button>
-                    <el-button type="primary" :loading="submitLoading" @click="onSubmit">
-                        确定
-                    </el-button>
-                </div>
-            </template>
-        </el-dialog>
+            :is-edit="isEdit"
+            :roles="allRoles"
+            :user-data="currentUserData"
+            @success="handleUserSubmit"
+        />
 
         <!-- 重置密码对话框 -->
-        <el-dialog
+        <ResetPasswordDialog
             v-model="resetPasswordDialogVisible"
-            title="重置密码"
-            width="500px"
-            :close-on-click-modal="false"
-        >
-            <el-form
-                ref="resetPasswordFormRef"
-                :model="resetPasswordFormData"
-                :rules="resetPasswordRules"
-                label-width="100px"
-            >
-                <el-form-item label="用户名">
-                    <el-input v-model="resetPasswordFormData.username" disabled />
-                </el-form-item>
-                <el-form-item label="新密码" prop="password">
-                    <el-input
-                        v-model="resetPasswordFormData.password"
-                        type="password"
-                        placeholder="请输入新密码"
-                        clearable
-                        show-password
-                    />
-                </el-form-item>
-                <el-form-item label="确认密码" prop="confirmPassword">
-                    <el-input
-                        v-model="resetPasswordFormData.confirmPassword"
-                        type="password"
-                        placeholder="请再次输入新密码"
-                        clearable
-                        show-password
-                    />
-                </el-form-item>
-            </el-form>
-
-            <template #footer>
-                <div class="text-right">
-                    <el-button @click="resetPasswordDialogVisible = false">取消</el-button>
-                    <el-button
-                        type="primary"
-                        :loading="resetPasswordLoading"
-                        @click="onSubmitResetPassword"
-                    >
-                        确定
-                    </el-button>
-                </div>
-            </template>
-        </el-dialog>
+            :user-data="currentResetPasswordUserData"
+            @success="handleResetPasswordSubmit"
+        />
     </div>
 </template>
 
 <script setup lang="ts">
-    import { ref, onMounted, reactive, computed } from 'vue'
+    import { ref, onMounted, computed } from 'vue'
     import { ElMessage, ElMessageBox } from 'element-plus'
     import { Plus } from '@element-plus/icons-vue'
     import Table from '@/components/table/Table.vue'
-    import type { UserListItem, RoleListItem, RoleInfo } from '@/api/user'
-    import {
-        fetchUserPage,
-        getUserById,
-        addUser,
-        updateUser,
-        resetUserPassword,
-        deleteUser,
-        assignUserRoles,
-    } from '@/api/user'
+    import UserDialog from './modules/UserDialog.vue'
+    import ResetPasswordDialog from './modules/ResetPasswordDialog.vue'
+    import type { UserListItem, RoleInfo, UserFormData } from '@/api/user'
+    import { fetchUserPage, addUser, updateUser, resetUserPassword, deleteUser } from '@/api/user'
     import { fetchRoleList } from '@/api/role'
     import { useUserStore } from '@/stores/user'
     import { USER_PERMISSIONS } from '@/constants/permissions'
@@ -210,7 +120,7 @@
     ]
 
     // ============ 列表数据 ============
-    const data = ref<UserListItem[]>([])
+    const userList = ref<UserListItem[]>([])
     const page = ref(1)
     const pageSize = ref(10)
     const total = ref(0)
@@ -219,71 +129,36 @@
     // ============ 用户编辑对话框 ============
     const dialogVisible = ref(false)
     const isEdit = ref(false)
-    const submitLoading = ref(false)
-    const formRef = ref()
-
-    const formData = reactive<{
+    const currentUserData = ref<{
         id: string
         username: string
-        password: string
         roleIds: string[]
-    }>({
-        id: '',
-        username: '',
-        password: '',
-        roleIds: [],
-    })
-
-    const rules = {
-        username: [
-            { required: true, message: '请输入用户名', trigger: 'blur' },
-            { min: 2, max: 20, message: '用户名长度在 2 到 20 个字符', trigger: 'blur' },
-        ],
-        password: [
-            { required: true, message: '请输入密码', trigger: 'blur' },
-            { min: 6, max: 50, message: '密码长度在 6 到 50 个字符', trigger: 'blur' },
-        ],
-    }
+    } | null>(null)
 
     // ============ 角色列表 ============
     const allRoles = ref<RoleInfo[]>([])
 
-    // ============ 重置密码对话框 ============
-    const resetPasswordDialogVisible = ref(false)
-    const resetPasswordLoading = ref(false)
-    const resetPasswordFormRef = ref()
-    const resetPasswordFormData = reactive({
-        id: '',
-        username: '',
-        password: '',
-        confirmPassword: '',
+    // 使用 computed 创建响应式的角色映射对象
+    const roleNameMap = computed(() => {
+        const map: Record<string, string> = {}
+        allRoles.value.forEach((role) => {
+            map[role.id] = role.name
+        })
+        return map
     })
 
-    const resetPasswordRules = {
-        password: [
-            { required: true, message: '请输入新密码', trigger: 'blur' },
-            { min: 6, max: 50, message: '密码长度在 6 到 50 个字符', trigger: 'blur' },
-        ],
-        confirmPassword: [
-            { required: true, message: '请再次输入新密码', trigger: 'blur' },
-            {
-                validator: (_rule: any, value: any, callback: any) => {
-                    if (value !== resetPasswordFormData.password) {
-                        callback(new Error('两次输入的密码不一致'))
-                    } else {
-                        callback()
-                    }
-                },
-                trigger: 'blur',
-            },
-        ],
-    }
+    // ============ 重置密码对话框 ============
+    const resetPasswordDialogVisible = ref(false)
+    const currentResetPasswordUserData = ref<{
+        id: string
+        username: string
+    } | null>(null)
 
     // ============ 方法 ============
     const loadData = async () => {
         loading.value = true
         const res = await fetchUserPage({ page: page.value, pageSize: pageSize.value })
-        data.value = res.data.records
+        userList.value = res.data.records
         total.value = Number(res.data.total) || 0
         loading.value = false
     }
@@ -291,18 +166,6 @@
     const loadRoles = async () => {
         const res = await fetchRoleList({ page: 1, pageSize: 1000 })
         allRoles.value = res.data.records
-    }
-
-    const getUserRoles = (userId: string): RoleListItem[] => {
-        const user = data.value.find((u) => u.id === userId)
-        return user?.roles || []
-    }
-
-    const isRolesTruncated = (userId: string): boolean => {
-        const roles = getUserRoles(userId)
-        // 如果角色数大于2，则认为可能被截断
-        // 可根据实际容器宽度调整这个数值
-        return roles.length > 2
     }
 
     const handlePageChange = (val: number) => {
@@ -320,64 +183,38 @@
         return String(row.id) === String(currentUserId.value)
     }
 
-    const resetForm = () => {
-        formData.id = ''
-        formData.username = ''
-        formData.password = ''
-        formData.roleIds = []
-        formRef.value?.resetFields()
-    }
-
     // ============ 用户编辑 ============
     const onAdd = () => {
         isEdit.value = false
-        resetForm()
+        currentUserData.value = null
         dialogVisible.value = true
     }
 
-    const onEdit = async (row: UserListItem) => {
+    const onEdit = (row: UserListItem) => {
         if (isCurrentUser(row)) {
             ElMessage.warning('不能编辑自己的账户')
             return
         }
         isEdit.value = true
-        const res = await getUserById(row.id)
-        const user = res.data
-        formData.id = user.id
-        formData.username = user.username
-        formData.password = ''
-        formData.roleIds = (user.roles || []).map((role: RoleInfo) => role.id)
+        currentUserData.value = {
+            id: row.id,
+            username: row.username,
+            roleIds: row.roleIds,
+        }
         dialogVisible.value = true
     }
 
-    const onSubmit = async () => {
-        await formRef.value?.validate()
-        submitLoading.value = true
-
-        try {
-            if (isEdit.value) {
-                await updateUser({
-                    id: formData.id,
-                    username: formData.username,
-                })
-                // 分配角色
-                await assignUserRoles(formData.id, formData.roleIds)
-                ElMessage.success('用户编辑成功')
-            } else {
-                await addUser({
-                    username: formData.username,
-                    password: formData.password,
-                })
-                ElMessage.success('用户添加成功')
-            }
-
-            dialogVisible.value = false
-            submitLoading.value = false
-            loadData()
-        } catch (error) {
-            submitLoading.value = false
-            throw error
+    const handleUserSubmit = async (formData: UserFormData) => {
+        if (isEdit.value) {
+            await updateUser(formData)
+            ElMessage.success('用户编辑成功')
+        } else {
+            await addUser(formData)
+            ElMessage.success('用户添加成功')
         }
+
+        dialogVisible.value = false
+        loadData()
     }
 
     // ============ 重置密码 ============
@@ -386,22 +223,18 @@
             ElMessage.warning('不能重置自己的密码')
             return
         }
-        resetPasswordFormData.id = row.id
-        resetPasswordFormData.username = row.username
-        resetPasswordFormData.password = ''
-        resetPasswordFormData.confirmPassword = ''
-        resetPasswordFormRef.value?.resetFields()
+        currentResetPasswordUserData.value = {
+            id: row.id,
+            username: row.username,
+        }
         resetPasswordDialogVisible.value = true
     }
 
-    const onSubmitResetPassword = async () => {
-        await resetPasswordFormRef.value?.validate()
-        resetPasswordLoading.value = true
-
-        await resetUserPassword(resetPasswordFormData.id, resetPasswordFormData.password)
+    const handleResetPasswordSubmit = async (password: string) => {
+        if (!currentResetPasswordUserData.value) return
+        await resetUserPassword(currentResetPasswordUserData.value.id, password)
         ElMessage.success('密码重置成功')
         resetPasswordDialogVisible.value = false
-        resetPasswordLoading.value = false
     }
 
     // ============ 删除用户 ============
@@ -421,8 +254,8 @@
         loadData()
     }
 
-    onMounted(() => {
-        loadData()
-        loadRoles()
+    onMounted(async () => {
+        await loadRoles() // 先加载角色
+        await loadData() // 再加载用户列表
     })
 </script>

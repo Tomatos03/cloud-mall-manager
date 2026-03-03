@@ -1,13 +1,15 @@
 <template>
-    <div class="lg:col-span-2 bg-white rounded-2xl p-5 shadow-sm border border-gray-100" v-loading="loading">
-        <div class="flex justify-between items-center">
+    <div class="lg:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+        <div class="flex justify-between items-center mb-6">
             <h3 class="text-lg font-bold text-gray-800">销售趋势</h3>
-            <el-radio-group v-model="selectedDays" size="small" :disabled="loading">
+            <el-radio-group v-model="selectedDays" size="small">
                 <el-radio-button :label="7">近7天</el-radio-button>
-                <el-radio-button :label="15">近15天</el-radio-button>
+                <el-radio-button :label="30">近30天</el-radio-button>
             </el-radio-group>
         </div>
-        <v-chart class="min-h-100" :option="trendOption" autoresize />
+        <div class="h-[350px]">
+            <v-chart class="chart" :option="trendOption" autoresize />
+        </div>
     </div>
 </template>
 
@@ -23,36 +25,36 @@
 
     interface Props {
         trendData: Record<string, number>
-        loading?: boolean
     }
 
     interface Emits {
         (e: 'days-change', days: number): void
     }
 
-    const props = withDefaults(defineProps<Props>(), {
-        loading: false,
-    })
+    const props = defineProps<Props>()
     const emit = defineEmits<Emits>()
 
     const selectedDays = ref(7)
 
-    // 转换后的图表数据：将Map转换为排序的日期和营收数组
+    // 转换后的图表数据
     const chartData = computed(() => {
-        const entries = Object.entries(props.trendData)
-
-        // 按日期排序
-        entries.sort((a, b) => a[0].localeCompare(b[0]))
-
-        return {
-            dates: entries.map((item) => {
-                // 仅显示月日，去掉年份 (格式: MM-DD)
-                const [year, month, day] = item[0].split('-')
-                return `${month}-${day}`
-            }),
-            revenues: entries.map((item) => item[1]),
+        if (!props.trendData || Object.keys(props.trendData).length === 0) {
+            return []
         }
+        const dates = Object.keys(props.trendData).sort()
+        return dates.map((date) => ({
+            date,
+            revenue: props.trendData[date],
+        }))
     })
+
+    const NUM_THRESHOLD = 10000
+    function yAxiosFormatter(value: number) {
+        if (value >= NUM_THRESHOLD) {
+            return (value / 10000).toFixed(2) + '万'
+        }
+        return value.toFixed(2) + '元'
+    }
 
     const trendOption = computed(() => ({
         tooltip: {
@@ -63,33 +65,23 @@
                 return `${param.name}<br/>${param.seriesName}: ¥${param.value.toFixed(2)}`
             },
         },
-        grid: { left: '5%', right: '5%', bottom: '3%', top: '15%', containLabel: true },
+        grid: { left: '5%', right: '5%', bottom: '3%', containLabel: true },
         xAxis: {
             type: 'category',
             boundaryGap: false,
-            data: chartData.value.dates,
+            data: chartData.value.map((item) => item.date),
             axisLine: { lineStyle: { color: '#eee' } },
-            axisLabel: {
-                color: '#999',
-                interval: 0,
-            },
+            axisLabel: { color: '#999' },
         },
         yAxis: {
             type: 'value',
-            name: '营收额（元）',
-            nameTextStyle: { color: '#606266', fontSize: 13 },
+            name: '营收额',
+            nameTextStyle: { color: '#606266', fontSize: 12 },
             splitLine: { lineStyle: { type: 'dashed', color: '#f5f5f5' } },
             axisLabel: {
-                formatter: (value: number) => {
-                    if (value >= 10000) {
-                        return (value / 10000).toFixed(1) + '万'
-                    } else if (value >= 1000) {
-                        return (value / 1000).toFixed(1) + 'k'
-                    }
-                    return value.toString()
-                },
+                formatter: yAxiosFormatter,
                 color: '#999',
-                margin: 10,
+                margin: 15
             },
         },
         series: [
@@ -97,7 +89,7 @@
                 name: '营收额',
                 type: 'line',
                 smooth: true,
-                data: chartData.value.revenues,
+                data: chartData.value.map((item) => Number(item.revenue)),
                 itemStyle: { color: '#409eff' },
                 areaStyle: {
                     color: {
@@ -122,6 +114,11 @@
 </script>
 
 <style scoped>
+    .chart {
+        width: 100%;
+        height: 100%;
+    }
+
     :deep(.el-radio-button__inner) {
         border-radius: 8px !important;
         margin: 0 4px;

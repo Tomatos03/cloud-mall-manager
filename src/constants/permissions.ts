@@ -22,10 +22,8 @@ export const ADDRESS_PERMISSIONS = {
 
 // ======================== 审计管理 ========================
 export const AUDIT_PERMISSIONS = {
-    ADD: 'audit:add',
     VIEW: 'audit:view',
     EDIT: 'audit:edit',
-    DELETE: 'audit:delete',
 } as const
 
 // ======================== 权限管理 ========================

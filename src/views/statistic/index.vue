@@ -25,12 +25,12 @@
         </div>
 
         <!-- 收藏商品排行 -->
-        <div class="mb-6">
+        <!-- <div class="mb-6">
             <TopCollectedProductsTable
                 :top-collected-products="topCollectedProductsData"
                 @view-report="handleViewCollectReport"
             />
-        </div>
+        </div> -->
     </div>
 </template>
 
@@ -40,7 +40,6 @@
     import SalesTrendChart from './modules/SalesTrendChart.vue'
     import CategoryRatioChart from './modules/CategoryRatioChart.vue'
     import TopProductsTable from './modules/TopProductsTable.vue'
-    import TopCollectedProductsTable from './modules/TopCollectedProductsTable.vue'
     import type {
         DashboardOverview,
         TopProduct,
@@ -98,13 +97,6 @@
     // 查看商品销售完整报表
     const handleViewProductReport = () => {
         console.log('查看商品销售完整报表')
-        // TODO: 导航到完整报表页面
-    }
-
-    // 查看收藏商品完整报表
-    const handleViewCollectReport = () => {
-        console.log('查看收藏商品完整报表')
-        // TODO: 导航到完整报表页面
     }
 
     onMounted(() => {
