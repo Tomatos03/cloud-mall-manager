@@ -1,97 +1,36 @@
 <template>
     <div class="h-full flex flex-col p-5">
-        <!-- 顶部操作栏 -->
-        <div class="mb-4 space-x-2">
-            <el-button type="primary" :icon="Plus" @click="onAdd">创建活动</el-button>
+        <div class="mb-4 flex items-center justify-between">
+            <el-button type="primary" :icon="Plus" @click="showCreateDialog = true">创建活动</el-button>
+            <el-button :icon="Refresh" @click="loadData">刷新</el-button>
         </div>
 
-        <!-- 搜索筛选栏 -->
-        <div class="mb-4 flex gap-4">
-            <el-input
-                v-model="searchName"
-                placeholder="搜索活动名称"
-                clearable
-                style="width: 200px"
-                :prefix-icon="Search"
-                @clear="handleSearch"
-                @keyup.enter="handleSearch"
-            />
-            <el-select
-                v-model="searchStatus"
-                placeholder="活动状态"
-                clearable
-                style="width: 150px"
-                @change="handleSearch"
-            >
-                <el-option
-                    v-for="(item, key) in SeckillActivityStatusMap"
-                    :key="key"
-                    :label="item.label"
-                    :value="Number(key)"
-                />
-            </el-select>
-            <el-button type="primary" :icon="Search" @click="handleSearch">搜索</el-button>
-            <el-button :icon="Refresh" @click="handleReset">重置</el-button>
-        </div>
-
-        <!-- 数据表格 -->
-        <div class="flex-1 overflow-hidden">
+        <div class="flex-1 overflow-hidden" v-loading="loading">
             <Table :columns="columns" :data="data" height="100%" :showId="true">
                 <template #status="{ row }">
-                    <el-tag :type="SeckillActivityStatusMap[row.status].type">
-                        {{ SeckillActivityStatusMap[row.status].label }}
+                    <el-tag :type="getActivityStatusTagType(row.status)">
+                        {{ getActivityStatusLabel(row.status) }}
                     </el-tag>
                 </template>
 
                 <template #time="{ row }">
-                    <div class="space-y-1">
-                        <div class="text-sm text-gray-600">
-                            <span class="text-gray-400">日期:</span>
-                            {{ formatDate(row.activityDate) }}
-                        </div>
-                        <div class="text-sm text-gray-600">
-                            <span class="text-gray-400">时间:</span>
-                            {{ `${row.startHour}:00-${row.startHour + 1}:00` }}
-                        </div>
+                    <div class="text-sm text-gray-600">
+                        {{ formatDate(row.activityDate) }} {{ formatHourRange(row.startHour) }}
                     </div>
                 </template>
 
+                <template #createTime="{ row }">
+                    <span class="text-sm text-gray-600">{{ formatDateTime(row.createTime) }}</span>
+                </template>
+
                 <template #action="{ row }">
-                    <el-button link type="primary" size="small" @click="onViewDetail(row)">
+                    <el-button link type="primary" size="small" @click="onViewDetail(row.id)">
                         详情
-                    </el-button>
-                    <el-button
-                        v-if="row.status === SeckillActivityStatus.REGISTRATION"
-                        link
-                        type="primary"
-                        size="small"
-                        @click="onEdit(row)"
-                    >
-                        编辑
-                    </el-button>
-                      <el-button
-                        v-if="row.status === SeckillActivityStatus.IN_PROGRESS"
-                        link
-                        type="warning"
-                        size="small"
-                        @click="onEnd(row)"
-                    >
-                        结束活动
-                    </el-button>
-                    <el-button
-                        v-if="row.status === SeckillActivityStatus.REGISTRATION"
-                        link
-                        type="danger"
-                        size="small"
-                        @click="onDelete(row)"
-                    >
-                        删除
                     </el-button>
                 </template>
             </Table>
         </div>
 
-        <!-- 分页 -->
         <div class="mt-4 flex justify-end">
             <el-pagination
                 v-model:current-page="page"
@@ -100,191 +39,98 @@
                 :page-sizes="[10, 20, 50, 100]"
                 background
                 layout="total, sizes, prev, pager, next, jumper"
-                @current-change="handlePageChange"
-                @size-change="handleSizeChange"
+                @current-change="loadData"
+                @size-change="handlePageSizeChange"
             />
         </div>
 
-        <!-- 创建/编辑活动对话框 -->
         <ActivityFormDialog
-            v-model:visible="showFormDialog"
-            :activity="selectedActivity"
-            :loading="submitLoading"
-            @confirm="handleSubmit"
+            v-model:visible="showCreateDialog"
+            @success="handleCreateSuccess"
         />
     </div>
 </template>
 
 <script setup lang="ts">
-    import { ref, onMounted } from 'vue'
+    import { onMounted, ref } from 'vue'
     import { useRouter } from 'vue-router'
+    import { Plus, Refresh } from '@element-plus/icons-vue'
     import Table from '@/components/table/Table.vue'
-    import { Plus, Search, Refresh } from '@element-plus/icons-vue'
-    import { ElMessage, ElMessageBox } from 'element-plus'
-    import {
-        getSeckillActivityPage,
-        deleteSeckillActivity,
-        startSeckillActivity,
-        endSeckillActivity,
-    } from '@/api/seckill'
-    import {
-        SeckillActivityStatus,
-        SeckillActivityStatusMap,
-        type SeckillActivity,
-    } from '@/api/seckill'
+    import { getSeckillActivityList, type SeckillActivity } from '@/api/seckill'
+    import { formatDate, formatDateTime } from '@/utils/format'
     import ActivityFormDialog from './modules/ActivityFormDialog.vue'
-    import { formatDate } from '@/utils/format'
-
-    const router = useRouter()
 
     const columns = [
-        { id: '1', label: '活动名称', key: 'name' },
-        { id: '2', label: '活动状态', key: 'status' },
-        { id: '3', label: '活动时间', key: 'time' },
-        { id: '4', label: '最大商品数', key: 'maxItems' },
+        { id: '1', label: '活动名称', key: 'name', minWidth: 180 },
+        { id: '2', label: '状态', key: 'status', width: 120 },
+        { id: '3', label: '活动时间', key: 'time', minWidth: 220 },
+        { id: '4', label: '最大商品数', key: 'maxItems', width: 120 },
+        { id: '5', label: '创建时间', key: 'createTime', minWidth: 180 },
     ]
+
+    const router = useRouter()
 
     const data = ref<SeckillActivity[]>([])
     const page = ref(1)
     const pageSize = ref(10)
     const total = ref(0)
+    const loading = ref(false)
 
-    const searchName = ref('')
-    const searchStatus = ref<SeckillActivityStatus | undefined>()
+    const showCreateDialog = ref(false)
 
     const loadData = async () => {
-        const params: any = {
-            page: page.value,
-            pageSize: pageSize.value,
-        }
-        if (searchName.value) {
-            params.name = searchName.value
-        }
-        if (searchStatus.value !== undefined) {
-            params.status = searchStatus.value
-        }
-
-        const res = await getSeckillActivityPage(params)
-        data.value = res.data.records
-        total.value = Number(res.data.total) || 0
-    }
-
-    const handlePageChange = (val: number) => {
-        page.value = val
-        loadData()
-    }
-
-    const handleSizeChange = (val: number) => {
-        pageSize.value = val
-        page.value = 1
-        loadData()
-    }
-
-    const handleSearch = () => {
-        page.value = 1
-        loadData()
-    }
-
-    const handleReset = () => {
-        searchName.value = ''
-        searchStatus.value = undefined
-        page.value = 1
-        loadData()
-    }
-
-    const showFormDialog = ref(false)
-    const selectedActivity = ref<SeckillActivity | null>(null)
-    const submitLoading = ref(false)
-
-    const onAdd = () => {
-        selectedActivity.value = null
-        showFormDialog.value = true
-    }
-
-    const onEdit = (row: SeckillActivity) => {
-        selectedActivity.value = { ...row }
-        showFormDialog.value = true
-    }
-
-    const handleSubmit = async () => {
-        showFormDialog.value = false
-        selectedActivity.value = null
-        loadData()
-    }
-
-    const onViewDetail = (row: SeckillActivity) => {
-        router.push(`/seckill/detail/${row.id}`)
-    }
-
-    const onDelete = async (row: SeckillActivity) => {
+        loading.value = true
         try {
-            await ElMessageBox.confirm(
-                `确定要删除活动"${row.name}"吗？删除后不可恢复。`,
-                '删除活动',
-                {
-                    confirmButtonText: '确定',
-                    cancelButtonText: '取消',
-                    type: 'warning',
-                },
-            )
-
-            await deleteSeckillActivity(row.id)
-            ElMessage.success('删除成功')
-            loadData()
-        } catch (err: unknown) {
-            if (err !== 'cancel') {
-                ElMessage.error('删除失败')
-            }
+            const res = await getSeckillActivityList({
+                page: page.value,
+                pageSize: pageSize.value,
+            })
+            data.value = res.data.records
+            total.value = Number(res.data.total) || 0
+            page.value = Number(res.data.current) || page.value
+            pageSize.value = Number(res.data.size) || pageSize.value
+        } finally {
+            loading.value = false
         }
     }
 
-    const onStart = async (row: SeckillActivity) => {
-        try {
-            await ElMessageBox.confirm(
-                `确定要开始活动"${row.name}"吗？开始后商家将无法继续申请加入。`,
-                '开始活动',
-                {
-                    confirmButtonText: '确定',
-                    cancelButtonText: '取消',
-                    type: 'info',
-                },
-            )
-
-            await startSeckillActivity(row.id)
-            ElMessage.success('活动已开始')
-            loadData()
-        } catch (err: unknown) {
-            if (err !== 'cancel') {
-                ElMessage.error('操作失败')
-            }
-        }
+    const handlePageSizeChange = async (value: number) => {
+        pageSize.value = value
+        page.value = 1
+        await loadData()
     }
 
-    const onEnd = async (row: SeckillActivity) => {
-        try {
-            await ElMessageBox.confirm(
-                `确定要结束活动"${row.name}"吗？结束后活动将立即停止。`,
-                '结束活动',
-                {
-                    confirmButtonText: '确定',
-                    cancelButtonText: '取消',
-                    type: 'warning',
-                },
-            )
-
-            await endSeckillActivity(row.id)
-            ElMessage.success('活动已结束')
-            loadData()
-        } catch (err: unknown) {
-            if (err !== 'cancel') {
-                ElMessage.error('操作失败')
-            }
-        }
+    const onViewDetail = (id: number) => {
+        router.push(`/seckill/detail/${id}`)
     }
 
-    onMounted(() => {
-        loadData()
-    })
+    const handleCreateSuccess = async () => {
+        page.value = 1
+        await loadData()
+    }
+
+    const formatHourRange = (hour: number) => {
+        const nextHour = (hour + 1) % 24
+        return `${String(hour).padStart(2, '0')}:00-${String(nextHour).padStart(2, '0')}:00`
+    }
+
+    const getActivityStatusLabel = (status: number) => {
+        const map: Record<number, string> = {
+            0: '待开始',
+            1: '进行中',
+            2: '已结束',
+        }
+        return map[status] ?? `状态${status}`
+    }
+
+    const getActivityStatusTagType = (status: number): 'info' | 'success' | 'warning' | 'danger' => {
+        const map: Record<number, 'info' | 'success' | 'warning' | 'danger'> = {
+            0: 'info',
+            1: 'success',
+            2: 'warning',
+        }
+        return map[status] ?? 'info'
+    }
+
+    onMounted(loadData)
 </script>
-
-<style scoped></style>

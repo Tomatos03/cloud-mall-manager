@@ -10,17 +10,27 @@ export enum AuditStatus {
     PENDING = 'PENDING', // 待审核
     APPROVED = 'APPROVED', // 通过
     REJECTED = 'REJECTED', // 拒绝
+    PARTIAL = 'PARTIAL', // 部分通过
+    REVOKED = 'REVOKED', // 已撤销
+}
+
+/**
+ * 审核子项状态
+ */
+export enum AuditItemStatus {
+    PENDING = 'PENDING', // 待审核
+    APPROVED = 'APPROVED', // 通过
+    REJECTED = 'REJECTED', // 拒绝
     REVOKED = 'REVOKED', // 已撤销
 }
 
 /**
  * 审核业务类型
- * 支持商品、店铺注册、秒杀活动等多种业务类型
  */
-export enum AuditTargetType {
+export enum AuditBizType {
     GOODS = 'GOODS', // 商品
     STORE_REGISTER = 'STORE_REGISTER', // 店铺注册
-    SECKILL_ACTIVITY = 'SECKILL_ACTIVITY', // 秒杀活动
+    SECKILL_GOODS = 'SECKILL_GOODS', // 秒杀商品
 }
 
 // ============ 类型和接口定义 ============
@@ -34,164 +44,129 @@ export const AuditStatusMap: Record<AuditStatus, AuditLabel> = {
     [AuditStatus.PENDING]: { label: '待审核', type: 'warning' },
     [AuditStatus.APPROVED]: { label: '通过', type: 'success' },
     [AuditStatus.REJECTED]: { label: '拒绝', type: 'danger' },
+    [AuditStatus.PARTIAL]: { label: '部分通过', type: 'warning' },
     [AuditStatus.REVOKED]: { label: '已撤销', type: 'info' },
+}
+
+/**
+ * 审核子项状态映射
+ */
+export const AuditItemStatusMap: Record<AuditItemStatus, AuditLabel> = {
+    [AuditItemStatus.PENDING]: { label: '待审核', type: 'warning' },
+    [AuditItemStatus.APPROVED]: { label: '通过', type: 'success' },
+    [AuditItemStatus.REJECTED]: { label: '拒绝', type: 'danger' },
+    [AuditItemStatus.REVOKED]: { label: '已撤销', type: 'info' },
 }
 
 /**
  * 业务类型映射
  */
-export const AuditTargetTypeMap: Record<AuditTargetType, AuditLabel> = {
-    [AuditTargetType.GOODS]: { label: '商品', type: 'info' },
-    [AuditTargetType.STORE_REGISTER]: { label: '店铺注册', type: 'info' },
-    [AuditTargetType.SECKILL_ACTIVITY]: { label: '秒杀活动', type: 'info' },
+export const AuditBizTypeMap: Record<AuditBizType, AuditLabel> = {
+    [AuditBizType.GOODS]: { label: '商品', type: 'info' },
+    [AuditBizType.STORE_REGISTER]: { label: '店铺注册', type: 'info' },
+    [AuditBizType.SECKILL_GOODS]: { label: '秒杀商品', type: 'warning' },
 }
 
 export function isValidAuditStatus(value: string): value is AuditStatus {
     return Object.values(AuditStatus).includes(value as AuditStatus)
 }
 
-export function isValidAuditTargetType(value: string): value is AuditTargetType {
-    return Object.values(AuditTargetType).includes(value as AuditTargetType)
+export function isValidAuditItemStatus(value: string): value is AuditItemStatus {
+    return Object.values(AuditItemStatus).includes(value as AuditItemStatus)
+}
+
+export function isValidAuditBizType(value: string): value is AuditBizType {
+    return Object.values(AuditBizType).includes(value as AuditBizType)
 }
 
 /**
- * 审核记录 VO 定义
+ * 审核批次列表项
  */
-export interface AuditLogVO {
-    /**
-     * 审核记录ID
-     */
-    auditId: string
-    /**
-     * 被审核对象类型: GOODS-商品, STORE_REGISTER-店铺注册, SECKILL_ACTIVITY-秒杀活动
-     */
-    targetType: AuditTargetType
-    /**
-     * 被审核对象ID
-     */
-    targetId: string
-    /**
-     * 审核状态: PENDING-待审核, APPROVED-通过, REJECTED-拒绝, REVOKED-已撤销
-     */
+export interface AuditRow {
+    auditId?: string
+    auditNo: string
+    bizType: AuditBizType
     status: AuditStatus
-    /**
-     * 审核状态名称
-     */
-    statusName?: string
-    /**
-     * 审核备注/拒绝原因
-     */
-    reason?: string
-    /**
-     * 申请人ID
-     */
     applicantId?: string
-    /**
-     * 申请人姓名
-     */
     applicantName: string
-    /**
-     * 审核人ID
-     */
     auditorId?: string
-    /**
-     * 审核人姓名
-     */
     auditorName?: string
-    /**
-     * 扩展信息: 存储商品数据的JSON字符串
-     */
-    snapshot: string
-    /**
-     * 申请时间
-     */
     createTime: string
-    /**
-     * 审核时间
-     */
     auditTime?: string
-}
-
-export interface AuditGoodsListItem {
-    auditId: string
-    goodsName: string
-    mainImgUrl: string
-    createTime: string
-    auditStatus: AuditStatus
-    sellPoint?: string
-    storeName?: string
 }
 
 /**
  * 审核查询参数
- * 继承自通用分页参数
  */
 export interface AuditPageParams extends PageParams {
     status?: AuditStatus
-    targetType?: AuditTargetType
+    bizType?: AuditBizType
     applicantId?: string
 }
 
 /**
- * 审核决策参数
+ * 审核分页响应
  */
-export interface AuditDecisionParams {
-    /**
-     * 审核记录ID
-     */
-    auditId: string
-    /**
-     * 被审核对象类型
-     */
-    targetType: AuditTargetType
-    /**
-     * 审核结果: true-通过, false-拒绝
-     */
-    approved: boolean
-    /**
-     * 审核备注/原因（可选）
-     */
+export type AuditPageResult = PageResult<AuditRow>
+
+export type AuditSnapshot = string
+
+/**
+ * 审核子项
+ */
+export interface AuditItem {
+    id: string
+    bizId?: string
+    status: AuditItemStatus
+    reason?: string
+    snapshot: AuditSnapshot
+    auditorId?: string
+    auditorName?: string
+    auditTime?: string
+}
+
+export type AuditDetail = AuditItem[]
+
+/**
+ * 审核决策请求
+ */
+export interface AuditItemDecision {
+    auditItemId: string
+    approved: boolean | null
     reason?: string
 }
 
-/**
- * 审核响应结构
- * 使用通用分页结果类型
- */
-export type AuditPageResult = PageResult<AuditLogVO>
+export interface AuditDecisionParams {
+    auditNo: string
+    bizType: AuditBizType
+    decisions: AuditItemDecision[]
+}
 
 /**
- * 审核通用数据接口
+ * 审核信息（不包含快照）
  */
-export interface AuditCommonData extends AuditLogVO {
-    auditId: string
+export interface AuditInfo {
+    auditId?: string
+    auditNo: string
+    bizType: AuditBizType
+    status: AuditStatus
+    applicantId?: string
     applicantName: string
     createTime: string
+    auditorId?: string
     auditTime?: string
     auditorName?: string
-    reason?: string
-}
-
-/**
- * 审核表格列表行数据（通用部分）
- */
-export interface AuditListRow {
-    auditId: string
-    applicantName: string
-    createTime: string
-    status: AuditStatus
-    targetType: AuditTargetType
 }
 
 /**
  * 业务渲染器接口
  */
-export interface AuditRenderer {
+export interface AuditRenderer<T = unknown> {
     /**
      * 解析业务特定数据
-     * @param snapshot JSON字符串
+     * @param snapshot 单个审核对象快照
      */
-    parseExtraInfo(extraInfo: string): Record<string, unknown>
+    parseSnapshot(snapshot?: AuditSnapshot): T | null
 
     /**
      * 获取详情显示组件
@@ -199,7 +174,23 @@ export interface AuditRenderer {
     getDetailComponent(): unknown
 }
 
+export interface AuditRendererProps<T = unknown> {
+    data: AuditData<T>[]
+    /** 审核决策模型 v-model:decisions */
+    decisions?: AuditItemDecision[]
+}
+
 /**
  * 渲染器注册表类型
  */
 export type AuditRendererMap = Record<string, AuditRenderer>
+
+/**
+ * 业务特定的审核数据类型
+ */
+export interface AuditData<T = unknown> {
+    id: string
+    status: AuditItemStatus
+    reason?: string
+    data: T | null
+}

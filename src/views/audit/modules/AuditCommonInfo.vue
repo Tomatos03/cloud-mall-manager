@@ -1,7 +1,6 @@
 <template>
     <div class="bg-white rounded border border-gray-100 p-5">
         <div class="flex flex-wrap gap-x-12 gap-y-6">
-            <!-- 当前审核状态 -->
             <div class="space-y-1.5 min-w-30">
                 <span class="text-xs text-gray-500 block tracking-wider uppercase font-medium">
                     当前审核状态
@@ -17,7 +16,6 @@
                 </div>
             </div>
 
-            <!-- 申请人 -->
             <div class="space-y-1.5 min-w-30">
                 <span class="text-xs text-gray-500 block tracking-wider uppercase font-medium">
                     申请人
@@ -27,7 +25,6 @@
                 </span>
             </div>
 
-            <!-- 申请提交时间 -->
             <div class="space-y-1.5 min-w-40">
                 <span class="text-xs text-gray-500 block tracking-wider uppercase font-medium">
                     申请提交时间
@@ -37,7 +34,6 @@
                 </span>
             </div>
 
-            <!-- 最后处理时间 -->
             <div v-if="data.status !== AuditStatus.PENDING" class="space-y-1.5 min-w-40">
                 <span class="text-xs text-gray-500 block tracking-wider uppercase font-medium">
                     最后处理时间
@@ -47,9 +43,12 @@
                 </span>
             </div>
 
-            <!-- 审核执行人 -->
             <div
-                v-if="data.status === AuditStatus.APPROVED || data.status === AuditStatus.REJECTED"
+                v-if="
+                    data.status === AuditStatus.APPROVED ||
+                    data.status === AuditStatus.REJECTED ||
+                    data.status === AuditStatus.PARTIAL
+                "
                 class="space-y-1.5 min-w-30"
             >
                 <span class="text-xs text-gray-500 block tracking-wider uppercase font-medium">
@@ -60,23 +59,6 @@
                 </span>
             </div>
 
-            <!-- 驳回理由 -->
-            <div v-if="data.status === AuditStatus.REJECTED" class="w-full">
-                <div class="pt-4 border-t border-gray-50">
-                    <span
-                        class="text-xs text-gray-500 block mb-2 tracking-wider uppercase font-medium"
-                    >
-                        审核驳回意见
-                    </span>
-                    <div
-                        class="bg-red-50/50 border border-red-100 rounded p-3 text-sm text-red-600 leading-relaxed"
-                    >
-                        {{ data.reason || '描述信息不符合平台规范' }}
-                    </div>
-                </div>
-            </div>
-
-            <!-- 撤销提示 -->
             <div v-if="data.status === AuditStatus.REVOKED" class="w-full">
                 <div class="pt-4 border-t border-gray-50">
                     <div
@@ -91,11 +73,10 @@
 </template>
 
 <script setup lang="ts">
-    import { AuditStatus, AuditStatusMap } from '@/views/audit/types'
-    import type { AuditCommonData } from '../types'
+    import { AuditStatus, AuditStatusMap, type AuditInfo } from '@/views/audit/types'
 
     interface Props {
-        data: AuditCommonData
+        data: AuditInfo
     }
 
     defineProps<Props>()
@@ -104,14 +85,15 @@
         [AuditStatus.PENDING]: 'bg-blue-500',
         [AuditStatus.APPROVED]: 'bg-green-500',
         [AuditStatus.REJECTED]: 'bg-red-500',
+        [AuditStatus.PARTIAL]: 'bg-amber-500',
         [AuditStatus.REVOKED]: 'bg-gray-400',
     }
 
-    function getStatusLabel(status: string): string {
+    const getStatusLabel = (status: string): string => {
         return AuditStatusMap[status as AuditStatus]?.label || '-'
     }
 
-    function getStatusColorClass(status: string): string {
+    const getStatusColorClass = (status: string): string => {
         return statusColorMap[status] || 'bg-gray-400'
     }
 </script>

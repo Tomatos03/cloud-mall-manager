@@ -1,39 +1,32 @@
 <template>
     <div class="h-full flex flex-col p-6 bg-[#f4f7fe]">
-        <!-- 搜索筛选区域 -->
         <AuditFilter @change="handleFilterChange" @reset="handleReset" />
 
-        <!-- 表格区域 -->
         <div class="flex-1 overflow-hidden">
-            <Table :columns="columns" :data="data" height="100%" :showId="false">
-                <!-- 审核申请ID -->
-                <template #auditId="{ row }">
-                    <span class="text-gray-600 text-sm font-mono">{{ row.auditId || '-' }}</span>
+            <Table :columns="columns" :data="data" height="100%" :showId="false" :loading="loading">
+                <template #auditNo="{ row }">
+                    <span class="text-gray-600 text-sm font-mono">{{ row.auditNo || '-' }}</span>
                 </template>
 
-                <!-- 申请人 -->
                 <template #applicantName="{ row }">
                     <span class="text-gray-600 text-sm">{{ row.applicantName || '-' }}</span>
                 </template>
 
-                <!-- 业务类型 -->
-                <template #targetType="{ row }">
+                <template #bizType="{ row }">
                     <el-tag
-                        :type="getTargetTypeInfo(row.targetType).type"
+                        :type="getBizTypeInfo(row.bizType).type"
                         size="small"
                         effect="light"
                         class="px-3 rounded-full border-none"
                     >
-                        {{ getTargetTypeInfo(row.targetType).label }}
+                        {{ getBizTypeInfo(row.bizType).label }}
                     </el-tag>
                 </template>
 
-                <!-- 提交时间 -->
                 <template #createTime="{ row }">
                     <span class="text-gray-400 text-xs">{{ row.createTime || '-' }}</span>
                 </template>
 
-                <!-- 审核状态 -->
                 <template #status="{ row }">
                     <el-tag
                         :type="getAuditStatusInfo(row.status).type"
@@ -45,16 +38,20 @@
                     </el-tag>
                 </template>
 
-                <!-- 操作 -->
-                <template #action="{ index }">
-                    <el-button link type="primary" size="small" @click="onView(index)">
+                <template #action="{ row }">
+                    <el-button
+                        link
+                        type="primary"
+                        size="small"
+                        :loading="detailLoading && viewingAuditNo === row.auditNo"
+                        @click="onView(row)"
+                    >
                         查看详情
                     </el-button>
                 </template>
             </Table>
         </div>
 
-        <!-- 分页区域 -->
         <div class="mt-6 flex justify-end">
             <el-pagination
                 v-model:current-page="page"
@@ -69,127 +66,106 @@
             />
         </div>
 
-        <!-- 审核详情对话框 -->
         <AuditDetailDialog
-            v-if="currentAuditData"
+            v-if="currentAuditInfo"
             v-model="detailVisible"
-            :data="currentAuditData"
+            :audit-info="currentAuditInfo"
+            :audit-data="currentAuditData"
             @success="loadData"
-            @reject="handleRejectFromDetail"
-        />
-
-        <!-- 拒绝审核对话框 -->
-        <AuditRejectDialog
-            ref="auditRejectDialogRef"
-            v-model="auditRejectDialogVisible"
-            @success="handleRejectSuccess"
         />
     </div>
 </template>
 
 <script setup lang="ts">
-    import { ref, onMounted } from 'vue'
+    import { onMounted, ref } from 'vue'
     import Table from '@/components/table/Table.vue'
     import AuditDetailDialog from './modules/AuditDetailDialog.vue'
     import AuditFilter, { type FilterParams } from './modules/AuditFilter.vue'
-    import AuditRejectDialog, {
-        type AuditRejectDialogExposed,
-        type AuditRejectOptions,
-    } from './modules/AuditRejectDialog.vue'
-    import { pageAudit } from '@/api/audit'
+    import { getAuditDetail, pageAudit } from '@/api/audit'
     import {
         AuditStatus,
         AuditStatusMap,
-        AuditTargetType,
-        AuditTargetTypeMap,
-        type AuditLogVO,
-        type AuditCommonData,
+        AuditBizType,
+        AuditBizTypeMap,
+        type AuditData,
+        type AuditDetail,
+        type AuditInfo,
+        type AuditRow,
     } from '@/views/audit/types'
     import { useCategoryStore } from '@/stores/category'
-    import { getAuditRenderer } from './modules/renderers'
+    import { getAuditRenderer } from './renderers'
 
-    interface AuditListRow {
-        auditId: string
-        applicantName: string
-        targetType: string
-        createTime: string
-        status: AuditStatus
-        reason?: string
-    }
-
-    interface AuditDetail extends AuditCommonData {
-        snapshot: string
-    }
-
-    // 初始化 store
     const categoryStore = useCategoryStore()
 
-    // 通用表格列
     const columns = [
-        { id: '1', label: '审核ID', key: 'auditId', minWidth: 90 },
+        { id: '1', label: '审核编号', key: 'auditNo', minWidth: 120 },
         { id: '2', label: '申请人', key: 'applicantName', minWidth: 110 },
-        { id: '3', label: '业务类型', key: 'targetType', minWidth: 90 },
+        { id: '3', label: '业务类型', key: 'bizType', minWidth: 100 },
         { id: '4', label: '提交时间', key: 'createTime', minWidth: 150 },
         { id: '5', label: '审核状态', key: 'status', minWidth: 110 },
     ]
 
-    const data = ref<AuditListRow[]>([])
-    const detailDataList = ref<AuditDetail[]>([])
+    const data = ref<AuditInfo[]>([])
     const page = ref(1)
     const pageSize = ref(10)
     const total = ref(0)
     const loading = ref(false)
+    const detailLoading = ref(false)
+    const viewingAuditNo = ref('')
 
     const detailVisible = ref(false)
-    const currentAuditData = ref<AuditDetail>()
+    const currentAuditInfo = ref<AuditInfo | null>(null)
+    const currentAuditData = ref<AuditData[]>([])
 
-    const auditRejectDialogRef = ref<AuditRejectDialogExposed | null>(null)
-    const auditRejectDialogVisible = ref(false)
-
-    // 当前筛选参数
     const currentFilterParams = ref<FilterParams>({})
+
+    const toAuditInfo = (item: AuditRow): AuditInfo => {
+        return {
+            auditId: item.auditId,
+            auditNo: item.auditNo,
+            bizType: item.bizType,
+            status: item.status,
+            applicantId: item.applicantId,
+            applicantName: item.applicantName,
+            auditorId: item.auditorId,
+            auditorName: item.auditorName,
+            createTime: item.createTime,
+            auditTime: item.auditTime,
+        }
+    }
+
+    const convertAuditItemsToData = (
+        auditItems: AuditDetail,
+        bizType: AuditBizType,
+    ): AuditData[] => {
+        const renderer = getAuditRenderer(bizType)
+        if (!renderer) {
+            return []
+        }
+
+        return auditItems.map((item) => ({
+            id: item.id,
+            status: item.status,
+            reason: item.reason,
+            data: renderer.parseSnapshot(item.snapshot) ?? null,
+        }))
+    }
 
     const loadData = async () => {
         loading.value = true
+        try {
+            const res = await pageAudit({
+                page: page.value,
+                pageSize: pageSize.value,
+                ...currentFilterParams.value,
+            })
 
-        const res = await pageAudit({
-            page: page.value,
-            pageSize: pageSize.value,
-            ...currentFilterParams.value,
-        })
-
-        // 解析审核数据
-        const records = (res.data.records || []).map((item: AuditLogVO): AuditDetail => {
-            return {
-                auditId: item.auditId,
-                targetType: item.targetType,
-                targetId: item.targetId,
-                status: item.status,
-                statusName: item.statusName,
-                reason: item.reason,
-                applicantId: item.applicantId,
-                applicantName: item.applicantName,
-                auditorId: item.auditorId,
-                auditorName: item.auditorName,
-                snapshot: item.snapshot,
-                createTime: item.createTime,
-                auditTime: item.auditTime,
-            }
-        })
-
-        detailDataList.value = records
-        data.value = records.map(
-            (item): AuditListRow => ({
-                auditId: item.auditId,
-                applicantName: item.applicantName,
-                targetType: item.targetType,
-                createTime: item.createTime,
-                status: item.status as AuditStatus,
-                reason: item.reason,
-            }),
-        )
-        total.value = res.data.total
-        loading.value = false
+            const records = (res.data.records ?? []).map(toAuditInfo)
+            data.value = records
+            total.value = res.data.total
+        } finally {
+            loading.value = false
+        }
     }
 
     const handlePageChange = (val: number) => {
@@ -215,73 +191,32 @@
         loadData()
     }
 
-    const onView = (index: number) => {
-        const detail = detailDataList.value?.[index]
-        if (!detail) return
-
-        currentAuditData.value = detail
+    const onView = async (row: AuditInfo) => {
+        detailLoading.value = true
+        viewingAuditNo.value = row.auditNo
+        currentAuditInfo.value = row
         detailVisible.value = true
-    }
+        currentAuditData.value = []
 
-    const handleRejectFromDetail = (auditData: AuditDetail) => {
-        const row = data.value.find((item) => item.auditId === auditData.auditId)
-        if (!row) return
-
-        const renderer = getAuditRenderer(auditData.targetType)
-        if (!renderer) return
-
-        const businessData = renderer.parseExtraInfo(auditData.snapshot)
-        const options: AuditRejectOptions = {
-            id: row.auditId,
-            targetType: auditData.targetType as AuditTargetType,
-            title:
-                (businessData.goodsName as string) || (businessData.storeName as string) || '未知',
-            applicant: row.applicantName,
-            image:
-                (businessData.displayImageUrls as string[])?.[0] ||
-                (businessData.licensePhoto as string) ||
-                '',
-            subTitle: (businessData.sellPoint as string) || '',
+        try {
+            const res = await getAuditDetail(row.auditNo)
+            const auditDetail = res.data ?? []
+            currentAuditData.value = convertAuditItemsToData(auditDetail, row.bizType)
+        } finally {
+            detailLoading.value = false
+            viewingAuditNo.value = ''
         }
-
-        // 如果是店铺注册，可以增加额外信息展示
-        if (auditData.targetType === AuditTargetType.STORE_REGISTER) {
-            options.dialogTitle = '拒绝店铺入驻申请'
-            options.extraInfo = [
-                {
-                    label: '店铺类型',
-                    value: businessData.subjectType === 'enterprise' ? '企业' : '个人',
-                },
-                {
-                    label: '证件名称',
-                    value:
-                        (businessData.licenseName as string) ||
-                        (businessData.realName as string) ||
-                        '-',
-                },
-            ]
-        }
-
-        auditRejectDialogRef.value?.open(options)
-    }
-
-    const handleRejectSuccess = () => {
-        loadData()
     }
 
     const getAuditStatusInfo = (status: AuditStatus) => {
         return AuditStatusMap[status] || { label: '未知', type: 'info' as const }
     }
 
-    const getTargetTypeInfo = (targetType: AuditLogVO['targetType']) => {
-        const typeKey = targetType as AuditTargetType
-        return {
-            label: AuditTargetTypeMap[typeKey]?.label || '未知',
-            type: 'info' as const,
-        }
+    const getBizTypeInfo = (bizType: AuditBizType) => {
+        return AuditBizTypeMap[bizType] || { label: '未知', type: 'info' as const }
     }
 
-    onMounted(async () => {
+    onMounted(() => {
         Promise.all([categoryStore.loadCategoryList(), loadData()])
     })
 </script>

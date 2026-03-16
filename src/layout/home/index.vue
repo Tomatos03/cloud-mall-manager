@@ -273,39 +273,52 @@
     }
 
     /**
+     * 递归过滤隐藏的菜单项
+     */
+    const filterHiddenMenus = (menus: ProcessedMenu[]): ProcessedMenu[] => {
+        return menus
+            .filter((item) => !item.meta.hidden)
+            .map((item) => {
+                if (item.children?.length) {
+                    return {
+                        ...item,
+                        children: filterHiddenMenus(item.children as ProcessedMenu[]),
+                    }
+                }
+                return item
+            })
+    }
+
+    /**
      * 计算最终的菜单数据
      */
     const resolvedMenus = computed(() => {
         const root = menuStore.rootNode
         if (!root) return []
-        return flattenLayoutMenus(root, '/')
+        const flattened = flattenLayoutMenus(root, '/')
+        return filterHiddenMenus(flattened)
     })
 
     /**
      * 获取当前路由对应的菜单标题
      */
     const getCurrentRouteTitle = (): string => {
-        const currentPath = route.path
+        // 优先使用路由元信息中的 title 或 label
+        const title = route.meta?.title || route.meta?.label
 
-        const findMenulabel = (menus: ProcessedMenu[]): string | null => {
-            for (const menu of menus) {
-                if (getMenuPath(menu) === currentPath) {
-                    return menu.meta.label
-                }
-
-                if (menu.children?.length) {
-                    const found = findMenulabel(menu.children as ProcessedMenu[])
-                    if (found) return found
-                }
-            }
-            return null
+        if (title) {
+            return title as string
         }
 
-        const label = findMenulabel(resolvedMenus.value)
-        if (!label) {
-            throw new Error(`无法找到与路径 ${currentPath} 对应的菜单标题`)
+        // 如果 meta 中没有，尝试从匹配的记录中获取（处理动态路由场景）
+        const lastMatch = route.matched[route.matched.length - 1]
+        const matchedTitle = lastMatch?.meta?.title || lastMatch?.meta?.label
+
+        if (matchedTitle) {
+            return matchedTitle as string
         }
-        return label
+
+        throw new Error(`无法找到与路径 ${route.path} 对应的菜单标题`)
     }
 
     /**

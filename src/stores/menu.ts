@@ -52,6 +52,7 @@ function extractMeta(node: MenuMeta) {
     return {
         icon: node.icon,
         title: node.label,
+        hidden: node.hidden,
     }
 }
 

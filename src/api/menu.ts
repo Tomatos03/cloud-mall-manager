@@ -21,6 +21,7 @@ export interface MenuMeta {
     icon?: string
     redirect?: string
     component?: string
+    hidden?: boolean // 是否在菜单中隐藏
 }
 
 /**
@@ -33,7 +34,7 @@ export interface MenuNode {
     type: MenuNodeType
     icon?: string
     sort: number
-    isEnable: boolean
+    enable: boolean
     parentId: string | null
     meta: MenuMeta
     children?: MenuNode[]
@@ -52,8 +53,9 @@ export interface MenuFormData {
     component?: string
     icon?: string
     sort: number
-    isEnable: boolean
+    enable: boolean
     parentId?: string
+    hidden?: boolean // 是否在菜单中隐藏
 }
 
 // ============ API ============
@@ -70,7 +72,6 @@ export function getMenuTree() {
 export function getUserMenuTree() {
     return http.get<MenuNode>(`${PREFIX}/user-tree`)
 }
-
 
 /**
  * 新增菜单
@@ -94,5 +95,5 @@ export function updateMenu(id: string, data: MenuFormData) {
  * @param id 菜单ID
  */
 export function delMenu(ids: string[]) {
-    return http.delete(`${PREFIX}`, undefined, { data:ids })
+    return http.delete(`${PREFIX}`, undefined, { data: ids })
 }

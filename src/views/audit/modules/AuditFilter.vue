@@ -31,7 +31,7 @@
                     业务类型
                 </span>
                 <el-select
-                    v-model="targetType"
+                    v-model="bizType"
                     @change="handleChange"
                     placeholder="请选择业务类型"
                     class="custom-select"
@@ -39,7 +39,7 @@
                 >
                     <el-option label="全部类型" :value="undefined" />
                     <el-option
-                        v-for="(item, key) in AuditTargetTypeMap"
+                        v-for="(item, key) in AuditBizTypeMap"
                         :key="key"
                         :label="item.label"
                         :value="key"
@@ -60,22 +60,15 @@
 <script setup lang="ts">
     import { ref } from 'vue'
     import { RefreshRight } from '@element-plus/icons-vue'
-    import {
-        AuditStatus,
-        AuditStatusMap,
-        AuditTargetType,
-        AuditTargetTypeMap,
-    } from '@/views/audit/types'
+    import { AuditStatus, AuditStatusMap, AuditBizType, AuditBizTypeMap } from '@/views/audit/types'
 
-    // 筛选参数对象 - 导出供父组件使用
     export interface FilterParams {
         status?: AuditStatus
-        targetType?: AuditTargetType
+        bizType?: AuditBizType
     }
 
-    // 内部维护筛选条件状态
     const statusGroup = ref<AuditStatus | undefined>(undefined)
-    const targetType = ref<AuditTargetType | undefined>(undefined)
+    const bizType = ref<AuditBizType | undefined>(undefined)
 
     const emit = defineEmits<{
         change: [params: FilterParams]
@@ -87,15 +80,15 @@
         if (statusGroup.value) {
             params.status = statusGroup.value
         }
-        if (targetType.value) {
-            params.targetType = targetType.value
+        if (bizType.value) {
+            params.bizType = bizType.value
         }
         emit('change', params)
     }
 
     const handleReset = () => {
         statusGroup.value = undefined
-        targetType.value = undefined
+        bizType.value = undefined
         emit('reset')
     }
 </script>

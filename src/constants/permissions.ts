@@ -122,6 +122,15 @@ export const ROLE_PERMISSIONS = {
     DELETE: 'role:delete',
 } as const
 
+// ======================== 秒杀活动管理 ========================
+export const SECKILL_PERMISSIONS = {
+    VIEW: 'seckill:view',
+    DETAIL: 'seckill:detail',
+    ADD: 'seckill:add',
+    EDIT: 'seckill:edit',
+    DELETE: 'seckill:delete',
+} as const
+
 // ======================== 系统用户管理 ========================
 export const USER_PERMISSIONS = {
     ADD: 'user:add',
@@ -134,4 +143,4 @@ export const USER_PERMISSIONS = {
  * 权限类型推断
  * 用于获取权限值的类型
  */
-export type PermissionValue = typeof ADDRESS_PERMISSIONS[keyof typeof ADDRESS_PERMISSIONS]
+export type PermissionValue = (typeof ADDRESS_PERMISSIONS)[keyof typeof ADDRESS_PERMISSIONS]

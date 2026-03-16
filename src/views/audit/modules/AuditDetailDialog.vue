@@ -8,46 +8,46 @@
         append-to-body
     >
         <div
-            v-if="data"
+            v-if="auditInfo"
             v-loading="loading"
             class="max-h-[75vh] overflow-y-auto custom-scrollbar px-6 py-4"
         >
-            <!-- 通用审核信息部分 -->
             <div class="space-y-6 pb-6 mt-1">
-                <AuditCommonInfo :data="data" />
+                <AuditCommonInfo :data="auditInfo" />
 
-                <!-- 业务特定内容部分 -->
                 <div class="space-y-6">
                     <component
-                        v-if="businessComponent && businessData"
+                        v-if="businessComponent && businessData.length"
                         :is="businessComponent"
                         :data="businessData"
+                        v-model:decisions="decisions"
                     />
+
+                    <!-- 自动注入单对象决策表单 -->
+                    <AuditDecisionForm v-if="shouldShowAutoDecisionForm" v-model="singleDecision" />
+
+                    <div
+                        v-else-if="!businessComponent || !businessData.length"
+                        class="rounded border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-center text-sm text-gray-500"
+                    >
+                        暂无审核对象数据
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- 操作按钮 (需要 audit:edit 权限) -->
-        <template v-if="data && [AuditStatus.PENDING].includes(data.status)" #footer>
-            <div class="flex justify-end gap-2 px-4 py-3">
-                <el-button
-                    v-auth="AUDIT_PERMISSIONS.EDIT"
-                    type="danger"
-                    plain
-                    @click="handleReject"
-                    :loading="loading"
-                    class="rounded px-6"
-                >
-                    拒绝驳回
-                </el-button>
+        <template v-if="auditInfo && auditInfo.status === AuditStatus.PENDING" #footer>
+            <div class="flex justify-end gap-3 px-4 py-3 border-t border-gray-50">
+                <el-button @click="visible = false" class="rounded px-6"> 取消 </el-button>
                 <el-button
                     v-auth="AUDIT_PERMISSIONS.EDIT"
                     type="primary"
-                    @click="handlePass"
+                    @click="handleSubmit"
                     :loading="loading"
+                    :disabled="!isAllDecided"
                     class="rounded px-8"
                 >
-                    审核通过
+                    确认提交审核
                 </el-button>
             </div>
         </template>
@@ -55,22 +55,26 @@
 </template>
 
 <script setup lang="ts">
-    import { ref, computed } from 'vue'
-    import { ElMessageBox, ElMessage } from 'element-plus'
+    import { computed, ref, watch } from 'vue'
+    import { ElMessage, ElMessageBox } from 'element-plus'
     import { auditDecision } from '@/api/audit'
-    import { AuditStatus } from '@/views/audit/types'
+    import { AuditStatus, type AuditData, type AuditInfo, type AuditItemDecision } from '../types'
     import { AUDIT_PERMISSIONS } from '@/constants/permissions'
     import AuditCommonInfo from './AuditCommonInfo.vue'
-    import { getAuditRenderer } from './renderers'
-    import type { AuditCommonData } from '../types'
+    import AuditDecisionForm from './AuditDecisionForm.vue'
+    import { getAuditRenderer } from '../renderers'
 
     interface Props {
         modelValue: boolean
-        data: AuditCommonData
+        auditInfo: AuditInfo | null
+        auditData: AuditData[] | null
     }
 
     const props = defineProps<Props>()
-    const emit = defineEmits(['update:modelValue', 'success', 'reject'])
+    const emit = defineEmits<{
+        'update:modelValue': [value: boolean]
+        success: []
+    }>()
 
     const visible = computed({
         get: () => props.modelValue,
@@ -78,53 +82,92 @@
     })
 
     const loading = ref(false)
+    const decisions = ref<AuditItemDecision[]>([])
 
-    // 获取业务渲染器和数据
-    const businessComponent = computed(() => {
-        if (!props.data) return null
-        const renderer = getAuditRenderer(props.data.targetType)
-        return renderer?.getDetailComponent() || null
+    // 监听业务数据变化，初始化决策列表
+    watch(
+        () => props.auditData,
+        (newData) => {
+            if (newData) {
+                decisions.value = newData.map((item) => ({
+                    auditItemId: item.id,
+                    approved: null, // 明确初始化为 null
+                    reason: '',
+                }))
+            } else {
+                decisions.value = []
+            }
+        },
+        { immediate: true },
+    )
+
+    const renderer = computed(() => {
+        if (!props.auditInfo) return null
+        return getAuditRenderer(props.auditInfo.bizType)
     })
 
-    const businessData = computed(() => {
-        if (!props.data) return null
-        const renderer = getAuditRenderer(props.data.targetType)
-        if (!renderer) return null
-        try {
-            return renderer.parseExtraInfo(props.data.snapshot)
-        } catch {
-            return null
+    const businessComponent = computed(() => renderer.value?.getDetailComponent() ?? null)
+    const businessData = computed(() => props.auditData ?? [])
+
+    const shouldShowAutoDecisionForm = computed(() => {
+        console.debug('判断是否显示自动决策表单', {
+            auditStatus: props.auditInfo?.status,
+            businessDataLength: businessData.value.length,
+        })
+        return props.auditInfo?.status === AuditStatus.PENDING && businessData.value.length === 1
+    })
+
+    // 单对象决策桥接（用于 v-model）
+    const singleDecision = computed({
+        get: () => decisions.value[0] || { auditItemId: '', approved: null, reason: '' },
+        set: (val) => {
+            if (decisions.value.length > 0) {
+                decisions.value[0] = val
+            }
+        },
+    })
+
+    const isAllDecided = computed(() => {
+        if (decisions.value.length === 0) return false
+        return decisions.value.every((d) => d.approved !== null)
+    })
+
+    const handleSubmit = async () => {
+        if (!props.auditInfo) return
+
+        const auditNo = props.auditInfo.auditNo
+        if (!auditNo) {
+            ElMessage.error('审核批次标识缺失')
+            return
         }
-    })
 
-    const handlePass = async () => {
-        if (!props.data) return
-        await ElMessageBox.confirm(`确认该申请合规并准予通过审核吗？`, '核验确认', {
-            confirmButtonText: '核验通过',
+        // 校验逻辑
+        const invalidDecisions = decisions.value.filter((d) => !d.approved && !d.reason?.trim())
+        if (invalidDecisions.length > 0) {
+            ElMessage.warning('驳回时必须填写审核备注/原因')
+            return
+        }
+
+        await ElMessageBox.confirm('确认提交当前审核结果吗？提交后将无法撤回。', '操作确认', {
+            confirmButtonText: '确定提交',
             cancelButtonText: '取消',
-            type: 'success',
+            type: 'warning',
             draggable: true,
         })
 
         loading.value = true
         try {
             await auditDecision({
-                auditId: props.data.auditId,
-                targetType: props.data.targetType,
-                approved: true,
+                auditNo: auditNo,
+                bizType: props.auditInfo.bizType,
+                decisions: decisions.value,
             })
-            ElMessage.success('审核已通过')
+            ElMessage.success('审核提交成功')
             visible.value = false
             emit('success')
         } finally {
             loading.value = false
         }
-    }
-
-    const handleReject = () => {
-        if (!props.data) return
-        visible.value = false
-        emit('reject', props.data)
     }
 </script>
 
