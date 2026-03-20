@@ -18,10 +18,7 @@
 
         <!-- 商品销量排行 -->
         <div class="mb-6">
-            <TopProductsTable
-                :top-products="topProductsData"
-                @view-report="handleViewProductReport"
-            />
+            <TopProductsTable :top-products="topProductsData" />
         </div>
 
         <!-- 收藏商品排行 -->
@@ -94,10 +91,10 @@
         }
     }
 
-    // 查看商品销售完整报表
-    const handleViewProductReport = () => {
-        console.log('查看商品销售完整报表')
-    }
+    // 查看商品销售完整报表（暂时注释，后续可能恢复）
+    // const handleViewProductReport = () => {
+    //     console.log('查看商品销售完整报表')
+    // }
 
     onMounted(() => {
         fetchInitialData()

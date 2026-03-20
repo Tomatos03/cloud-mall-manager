@@ -52,24 +52,6 @@
                     >
                         详情
                     </el-button>
-                    <el-button
-                        v-auth="ORDER_PERMISSIONS.EDIT"
-                        link
-                        type="warning"
-                        size="small"
-                        @click="onEdit(row)"
-                    >
-                        编辑
-                    </el-button>
-                    <el-button
-                        v-auth="ORDER_PERMISSIONS.DELETE"
-                        link
-                        type="danger"
-                        size="small"
-                        @click="onDelete(row)"
-                    >
-                        删除
-                    </el-button>
                 </template>
             </Table>
         </div>
@@ -96,25 +78,19 @@
 
 <script setup lang="ts">
     import { ref, onMounted } from 'vue'
-    import { ElMessage, ElMessageBox } from 'element-plus'
     import Table from '@/components/table/Table.vue'
     import OrderFilter from './modules/OrderFilter.vue'
     import OrderDetailDialog from './modules/OrderDetailDialog.vue'
-    import { fetchOrderPage, getOrderStatusInfo, OrderType } from '@/api/order'
+    import {
+        fetchOrderPage,
+        getOrderStatusInfo,
+        getOrderTypeLabel,
+        getOrderTypeTag,
+    } from '@/api/order'
     import type { OrderItem } from '@/api/order'
     import type { PageParams } from '@/api/common'
     import { formatPrice } from '@/utils/money'
     import { ORDER_PERMISSIONS } from '@/constants/permissions'
-
-    // 获取订单类型标签
-    const getOrderTypeLabel = (orderType: OrderType): string => {
-        const labels: Record<string, string> = {
-            PARENT: '主订单',
-            SUB: '子订单',
-            NORMAL: '普通订单',
-        }
-        return labels[String(orderType)] || String(orderType)
-    }
 
     const columns = [
         { id: '1', label: '订单号', key: 'orderNo', minWidth: 200 },
@@ -134,22 +110,6 @@
     const detailDialogVisible = ref(false)
     const selectedOrder = ref<OrderItem | undefined>()
     const selectedStatus = ref<string>('ALL')
-
-    /**
-     * 根据订单类型获取标签类型
-     */
-    const getOrderTypeTag = (orderType: OrderType): 'primary' | 'success' | 'warning' => {
-        switch (orderType) {
-            case OrderType.PARENT:
-                return 'success'
-            case OrderType.SUB:
-                return 'primary'
-            case OrderType.NORMAL:
-                return 'warning'
-            default:
-                return 'primary'
-        }
-    }
 
     const loadData = async () => {
         const params: PageParams = {
@@ -191,20 +151,6 @@
     const onDetail = (row: OrderItem) => {
         selectedOrder.value = row
         detailDialogVisible.value = true
-    }
-
-    const onEdit = (row: OrderItem) => {
-        ElMessage.info('编辑订单功能开发中...')
-    }
-
-    const onDelete = async (row: OrderItem) => {
-        await ElMessageBox.confirm(`确定要删除订单 "${row.orderNo}" 吗？`, '删除确认', {
-            confirmButtonText: '确定',
-            cancelButtonText: '取消',
-            type: 'warning',
-        })
-        ElMessage.success('订单删除成功')
-        loadData()
     }
 
     onMounted(() => {

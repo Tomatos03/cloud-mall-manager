@@ -2,7 +2,7 @@
     <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-6">
         <div class="flex justify-between items-center mb-6">
             <h3 class="text-lg font-bold text-gray-800">商品销量排行 Top 10</h3>
-            <el-button link type="primary" @click="handleViewFullReport">查看完整报表</el-button>
+            <!-- <el-button link type="primary" @click="handleViewFullReport">查看完整报表</el-button> -->
         </div>
         <el-table
             :data="topProducts"
@@ -45,18 +45,6 @@
                     <span class="font-bold text-orange-600">{{ formatPrice(row.saleAmount.toString()) }}</span>
                 </template>
             </el-table-column>
-            <el-table-column label="操作" width="100" align="center" fixed="right">
-                <template #default="{ row }">
-                    <el-button
-                        link
-                        type="primary"
-                        size="small"
-                        @click="handleViewProductDetail(row.goodsId)"
-                    >
-                        查看详情
-                    </el-button>
-                </template>
-            </el-table-column>
         </el-table>
     </div>
 </template>
@@ -69,21 +57,14 @@
         topProducts: TopProduct[]
     }
 
-    interface Emits {
-        (e: 'view-report'): void
-    }
-
     defineProps<Props>()
-    const emit = defineEmits<Emits>()
-
-    const handleViewFullReport = () => {
-        emit('view-report')
-    }
-
-    const handleViewProductDetail = (goodsId: number) => {
-        console.log('查看商品详情:', goodsId)
-        // TODO: 导航到商品详情页面
-    }
+    // interface Emits {
+    //     (e: 'view-report'): void
+    // }
+    // const emit = defineEmits<Emits>()
+    // const handleViewFullReport = () => {
+    //     emit('view-report')
+    // }
 </script>
 
 <style scoped>

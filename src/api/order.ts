@@ -183,6 +183,8 @@ export const OrderStatusMap: Record<
     CLOSED: { label: '已关闭', type: 'info' },
 }
 
+export type OrderTagType = 'warning' | 'primary' | 'success' | 'info' | 'danger'
+
 // ============ 工具函数 ============
 
 /**
@@ -207,13 +209,15 @@ export function getOrderStatusInfo(orderType: OrderType, status: OrderStatus) {
 /**
  * 获取订单类型标签
  */
-export function getOrderTypeLabel(orderType: OrderType): string {
-    const typeMap: Record<string, string> = {
-        [OrderType.PARENT]: '聚合订单',
-        [OrderType.SUB]: '普通订单',
-        [OrderType.NORMAL]: '普通订单',
-    }
-    return typeMap[orderType] || '-'
+export function getOrderTypeLabel(_orderType: OrderType): string {
+    return '普通订单'
+}
+
+/**
+ * 获取订单类型标签样式
+ */
+export function getOrderTypeTag(_orderType: OrderType): OrderTagType {
+    return 'warning'
 }
 
 // ============ API ============

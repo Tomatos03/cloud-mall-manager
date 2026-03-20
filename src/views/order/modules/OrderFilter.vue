@@ -17,8 +17,8 @@
                 >
                     <el-option label="全部状态" value="ALL" />
                     <el-option label="待支付" value="CREATED" />
-                    <el-option label="已支付" value="PAID" />
-                    <el-option label="进行中" value="PROCESSING" />
+                    <el-option label="待发货" value="PAID" />
+                    <el-option label="待收货" value="SHIPPED" />
                     <el-option label="已完成" value="FINISHED" />
                     <el-option label="已取消" value="CANCELED" />
                     <el-option label="已关闭" value="CLOSED" />
